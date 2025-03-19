@@ -1,30 +1,56 @@
 
-import { Menu } from 'lucide-react';
+import { Menu, ChevronLeft, MessageSquare } from 'lucide-react';
 import ThemeSwitcher from './ThemeSwitcher';
+import { Button } from './ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
+  onToggleChat: () => void;
+  chatOpen: boolean;
 }
 
-const Header = ({ onToggleSidebar }: HeaderProps) => {
+const Header = ({ onToggleSidebar, onToggleChat, chatOpen }: HeaderProps) => {
   return (
-    <header className="h-16 flex items-center justify-between px-4 md:px-6 border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-10 animate-fade-in">
+    <header className="h-16 border-b border-border flex items-center justify-between px-4">
       <div className="flex items-center">
-        <button
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="md:hidden mr-2" 
           onClick={onToggleSidebar}
-          className="w-10 h-10 flex items-center justify-center rounded-lg mr-2 button-hover-effect md:hidden focus-ring"
-          aria-label="Toggle sidebar"
         >
-          <Menu className="w-5 h-5" />
-        </button>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-          <h1 className="text-lg font-semibold tracking-tight">CogniCore</h1>
-        </div>
+          <Menu className="h-5 w-5" />
+          <span className="sr-only">Toggle sidebar</span>
+        </Button>
+        <h1 className="text-lg font-semibold">CogniCore</h1>
       </div>
-      
       <div className="flex items-center space-x-2">
         <ThemeSwitcher />
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={onToggleChat}
+                className="relative"
+              >
+                {chatOpen ? (
+                  <ChevronLeft className="h-5 w-5" />
+                ) : (
+                  <MessageSquare className="h-5 w-5" />
+                )}
+                <span className="sr-only">
+                  {chatOpen ? 'Hide chat' : 'Show chat'}
+                </span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {chatOpen ? 'Hide chat' : 'Show chat'}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </header>
   );

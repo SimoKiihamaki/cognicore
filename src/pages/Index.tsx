@@ -9,21 +9,25 @@ import SettingsPanel from '@/components/SettingsPanel';
 import { useFolders } from '@/hooks/useFolders';
 import { useNotes } from '@/hooks/useNotes';
 import { Toaster } from '@/components/ui/sonner';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 
 const Index = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState('chat');
+  const [activeSection, setActiveSection] = useState('editor');
+  const [chatOpen, setChatOpen] = useState(true);
   const { folderTree } = useFolders();
   const { notes } = useNotes();
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
+  
+  const toggleChat = () => {
+    setChatOpen(!chatOpen);
+  };
 
   const renderActiveSection = () => {
     switch (activeSection) {
-      case 'chat':
-        return <ChatInterface />;
       case 'graph':
         return <GraphVisualization />;
       case 'editor':
@@ -31,7 +35,7 @@ const Index = () => {
       case 'settings':
         return <SettingsPanel />;
       default:
-        return <ChatInterface />;
+        return <NoteEditor />;
     }
   };
 
@@ -46,9 +50,26 @@ const Index = () => {
         />
         
         <div className="flex-1 flex flex-col h-full md:ml-64">
-          <Header onToggleSidebar={toggleSidebar} />
+          <Header 
+            onToggleSidebar={toggleSidebar} 
+            onToggleChat={toggleChat}
+            chatOpen={chatOpen}
+          />
           <main className="flex-1 overflow-hidden">
-            {renderActiveSection()}
+            <ResizablePanelGroup direction="horizontal" className="h-full">
+              <ResizablePanel defaultSize={chatOpen ? 70 : 100} minSize={30}>
+                {renderActiveSection()}
+              </ResizablePanel>
+              
+              {chatOpen && (
+                <>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+                    <ChatInterface asSidebar />
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
           </main>
         </div>
       </div>

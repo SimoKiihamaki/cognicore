@@ -1,120 +1,183 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { useLocalStorage } from './useLocalStorage';
-import { Folder } from '@/lib/types';
+import { v4 as uuidv4 } from 'uuid';
 
-export interface FolderWithChildren extends Folder {
-  isExpanded: boolean;
-  children: FolderWithChildren[];
+// Define the Folder type
+interface Folder {
+  id: string;
+  name: string;
+  parentId: string | null;
+  expanded?: boolean;
+  children: Folder[];
 }
 
-export function useFolders() {
-  const [folders, setFolders] = useLocalStorage<Folder[]>('cognicore-folders', [
-    {
-      id: 'root',
-      name: 'Notes',
-      parentId: null,
-    }
-  ]);
-  
-  const [expandedFolders, setExpandedFolders] = useLocalStorage<string[]>('cognicore-expanded-folders', ['root']);
-  
-  const getFolderTree = useCallback((): FolderWithChildren[] => {
-    const buildTree = (parentId: string | null): FolderWithChildren[] => {
-      return folders
-        .filter(folder => folder.parentId === parentId)
-        .map(folder => ({
-          ...folder,
-          isExpanded: expandedFolders.includes(folder.id),
-          children: buildTree(folder.id)
-        }));
-    };
-    
-    return buildTree(null);
-  }, [folders, expandedFolders]);
-  
-  const addFolder = useCallback((name: string, parentId: string | null = null) => {
+interface FoldersContextType {
+  folderTree: Folder[];
+  addFolder: (name: string, parentId: string | null) => void;
+  deleteFolder: (id: string) => void;
+  renameFolder: (id: string, newName: string) => void;
+  toggleFolderExpanded: (id: string) => void;
+}
+
+const FoldersContext = createContext<FoldersContextType | undefined>(undefined);
+
+// Default folders
+const defaultFolders: Folder[] = [
+  {
+    id: 'root',
+    name: 'My Notes',
+    parentId: null,
+    expanded: true,
+    children: [
+      {
+        id: 'work',
+        name: 'Work',
+        parentId: 'root',
+        expanded: false,
+        children: [],
+      },
+      {
+        id: 'personal',
+        name: 'Personal',
+        parentId: 'root',
+        expanded: false,
+        children: [],
+      }
+    ],
+  },
+];
+
+export const FoldersProvider = ({ children }: { children: ReactNode }) => {
+  const [storedFolders, setStoredFolders] = useLocalStorage<Folder[]>('folders', defaultFolders);
+  const [folderTree, setFolderTree] = useState<Folder[]>(storedFolders);
+
+  useEffect(() => {
+    setStoredFolders(folderTree);
+  }, [folderTree, setStoredFolders]);
+
+  const addFolder = (name: string, parentId: string | null) => {
     const newFolder: Folder = {
-      id: `folder-${Date.now()}`,
+      id: uuidv4(),
       name,
-      parentId
+      parentId,
+      expanded: false,
+      children: [],
     };
+
+    const updatedTree = [...folderTree];
     
-    setFolders(prev => [...prev, newFolder]);
-    return newFolder.id;
-  }, [setFolders]);
-  
-  const renameFolder = useCallback((folderId: string, newName: string) => {
-    setFolders(prev => 
-      prev.map(folder => 
-        folder.id === folderId 
-          ? { ...folder, name: newName } 
-          : folder
-      )
-    );
-  }, [setFolders]);
-  
-  const deleteFolder = useCallback((folderId: string) => {
-    // First, get all child folder IDs recursively
-    const getAllChildIds = (id: string): string[] => {
-      const directChildren = folders.filter(f => f.parentId === id);
-      const allChildren = [...directChildren];
+    if (!parentId) {
+      updatedTree.push(newFolder);
+    } else {
+      // Find and update the parent folder
+      const updateFolderChildren = (folders: Folder[]): Folder[] => {
+        return folders.map(folder => {
+          if (folder.id === parentId) {
+            return {
+              ...folder,
+              children: [...folder.children, newFolder],
+            };
+          }
+          
+          if (folder.children.length > 0) {
+            return {
+              ...folder,
+              children: updateFolderChildren(folder.children),
+            };
+          }
+          
+          return folder;
+        });
+      };
       
-      directChildren.forEach(child => {
-        const grandChildren = getAllChildIds(child.id);
-        allChildren.push(...grandChildren);
-      });
-      
-      return allChildren;
-    };
-    
-    const childIds = getAllChildIds(folderId);
-    const idsToRemove = [folderId, ...childIds.map(child => child.id)];
-    
-    setFolders(prev => prev.filter(folder => !idsToRemove.includes(folder.id)));
-    setExpandedFolders(prev => prev.filter(id => !idsToRemove.includes(id)));
-  }, [folders, setFolders, setExpandedFolders]);
-  
-  const moveFolder = useCallback((folderId: string, newParentId: string | null) => {
-    // Prevent moving a folder to its own descendant
-    if (newParentId !== null) {
-      let currentParent = newParentId;
-      while (currentParent) {
-        const parent = folders.find(f => f.id === currentParent);
-        if (!parent) break;
-        if (parent.id === folderId) return false; // Would create a cycle
-        currentParent = parent.parentId;
-      }
+      setFolderTree(updateFolderChildren(updatedTree));
+      return;
     }
     
-    setFolders(prev => 
-      prev.map(folder => 
-        folder.id === folderId 
-          ? { ...folder, parentId: newParentId } 
-          : folder
-      )
-    );
-    return true;
-  }, [folders, setFolders]);
-  
-  const toggleFolderExpanded = useCallback((folderId: string) => {
-    setExpandedFolders(prev => {
-      if (prev.includes(folderId)) {
-        return prev.filter(id => id !== folderId);
-      } else {
-        return [...prev, folderId];
-      }
-    });
-  }, [setExpandedFolders]);
-  
-  return {
-    folders,
-    folderTree: getFolderTree(),
-    addFolder,
-    renameFolder,
-    deleteFolder,
-    moveFolder,
-    toggleFolderExpanded,
-    expandedFolders
+    setFolderTree(updatedTree);
   };
-}
+
+  const deleteFolder = (id: string) => {
+    // Remove folder from tree
+    const removeFolder = (folders: Folder[]): Folder[] => {
+      return folders.filter(folder => {
+        if (folder.id === id) return false;
+        
+        if (folder.children.length > 0) {
+          folder.children = removeFolder(folder.children);
+        }
+        
+        return true;
+      });
+    };
+    
+    setFolderTree(removeFolder(folderTree));
+  };
+
+  const renameFolder = (id: string, newName: string) => {
+    // Find and rename the folder
+    const renameFolderInTree = (folders: Folder[]): Folder[] => {
+      return folders.map(folder => {
+        if (folder.id === id) {
+          return { ...folder, name: newName };
+        }
+        
+        if (folder.children.length > 0) {
+          return {
+            ...folder,
+            children: renameFolderInTree(folder.children),
+          };
+        }
+        
+        return folder;
+      });
+    };
+    
+    setFolderTree(renameFolderInTree(folderTree));
+  };
+
+  const toggleFolderExpanded = (id: string) => {
+    // Find and toggle the expanded state of the folder
+    const toggleExpanded = (folders: Folder[]): Folder[] => {
+      return folders.map(folder => {
+        if (folder.id === id) {
+          return { ...folder, expanded: !folder.expanded };
+        }
+        
+        if (folder.children.length > 0) {
+          return {
+            ...folder,
+            children: toggleExpanded(folder.children),
+          };
+        }
+        
+        return folder;
+      });
+    };
+    
+    setFolderTree(toggleExpanded(folderTree));
+  };
+
+  return (
+    <FoldersContext.Provider
+      value={{
+        folderTree,
+        addFolder,
+        deleteFolder,
+        renameFolder,
+        toggleFolderExpanded,
+      }}
+    >
+      {children}
+    </FoldersContext.Provider>
+  );
+};
+
+export const useFolders = () => {
+  const context = useContext(FoldersContext);
+  if (context === undefined) {
+    throw new Error('useFolders must be used within a FoldersProvider');
+  }
+  return context;
+};
