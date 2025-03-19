@@ -6,6 +6,7 @@ import GraphVisualization from '@/components/GraphVisualization';
 import NoteEditor from '@/components/NoteEditor';
 import SettingsPanel from '@/components/SettingsPanel';
 import ServerConfig from '@/components/ServerConfig';
+import ChatInterface from '@/components/ChatInterface';
 import { Toaster } from '@/components/ui/sonner';
 import { useFolders } from '@/hooks/useFolders';
 import { useNotes } from '@/hooks/useNotes';
@@ -13,11 +14,16 @@ import { useNotes } from '@/hooks/useNotes';
 const Index = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('editor');
+  const [showChat, setShowChat] = useState(true);
   const { folderTree } = useFolders();
   const { notes } = useNotes();
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
+  };
+
+  const toggleChat = () => {
+    setShowChat(!showChat);
   };
 
   const renderActiveSection = () => {
@@ -48,10 +54,20 @@ const Index = () => {
         <div className="flex-1 flex flex-col h-full md:ml-64">
           <Header 
             onToggleSidebar={toggleSidebar}
+            onToggleChat={toggleChat}
+            showChat={showChat}
           />
-          <main className="flex-1 overflow-hidden">
-            {renderActiveSection()}
-          </main>
+          <div className="flex-1 flex overflow-hidden">
+            <main className="flex-1 overflow-hidden">
+              {renderActiveSection()}
+            </main>
+            
+            {showChat && (
+              <div className="h-full border-l border-border w-72 md:w-96 hidden md:block transition-all">
+                <ChatInterface />
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <Toaster position="bottom-right" />

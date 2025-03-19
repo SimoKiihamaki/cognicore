@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { Menu, Bell } from 'lucide-react';
+import { Menu, Bell, MessageSquare } from 'lucide-react';
 import ThemeSwitcher from './ThemeSwitcher';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,9 +12,15 @@ import {
 
 interface HeaderProps {
   onToggleSidebar: () => void;
+  onToggleChat?: () => void;
+  showChat?: boolean;
 }
 
-const Header = ({ onToggleSidebar }: HeaderProps) => {
+const Header = ({ 
+  onToggleSidebar, 
+  onToggleChat, 
+  showChat = false 
+}: HeaderProps) => {
   const [notificationsCount, setNotificationsCount] = useState(3);
   
   return (
@@ -32,6 +38,19 @@ const Header = ({ onToggleSidebar }: HeaderProps) => {
       </div>
       
       <div className="flex items-center space-x-2">
+        {onToggleChat && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleChat}
+            className="hidden md:flex"
+            aria-label={showChat ? "Hide chat" : "Show chat"}
+          >
+            <MessageSquare className={`w-5 h-5 ${showChat ? 'text-primary' : ''}`} />
+            <span className="sr-only">{showChat ? "Hide chat" : "Show chat"}</span>
+          </Button>
+        )}
+        
         <ThemeSwitcher />
         
         <DropdownMenu>
