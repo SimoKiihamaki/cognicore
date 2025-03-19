@@ -57,3 +57,6 @@ export interface GraphEdge {
   label?: string;
   similarity: number;
 }
+
+export type ContentItemType = "note" | "file";
+
