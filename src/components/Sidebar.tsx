@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { ChevronLeft, MessageCircle, Network, FileText, Settings, Plus, FolderPlus } from 'lucide-react';
+import { ChevronLeft, Network, FileText, Settings, Plus, FolderPlus, Server, ServerCog } from 'lucide-react';
 import { useFolders } from '@/hooks/useFolders';
 import { useNotes } from '@/hooks/useNotes';
 import FolderTree from './FolderTree';
@@ -23,6 +23,7 @@ interface SidebarProps {
 
 const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarProps) => {
   const [notesExpanded, setNotesExpanded] = useState(true);
+  const [serversExpanded, setServersExpanded] = useState(true);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [isAddFolderDialogOpen, setIsAddFolderDialogOpen] = useState(false);
   const [isRenameFolderDialogOpen, setIsRenameFolderDialogOpen] = useState(false);
@@ -163,19 +164,6 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
             <ul className="space-y-1">
               <li>
                 <button
-                  onClick={() => handleSectionClick('chat')}
-                  className={`w-full flex items-center px-3 py-2 rounded-lg transition-colors ${
-                    activeSection === 'chat' 
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-                  }`}
-                >
-                  <MessageCircle className="w-5 h-5 mr-3" />
-                  <span>Chat</span>
-                </button>
-              </li>
-              <li>
-                <button
                   onClick={() => handleSectionClick('graph')}
                   className={`w-full flex items-center px-3 py-2 rounded-lg transition-colors ${
                     activeSection === 'graph' 
@@ -220,6 +208,32 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     New Note
+                  </button>
+                </li>
+              )}
+              <li>
+                <button
+                  onClick={() => setServersExpanded(!serversExpanded)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+                >
+                  <div className="flex items-center">
+                    <Server className="w-5 h-5 mr-3" />
+                    <span>MCP Servers</span>
+                  </div>
+                </button>
+              </li>
+              {serversExpanded && (
+                <li className="ml-9 mt-1">
+                  <button 
+                    onClick={() => handleSectionClick('server-config')}
+                    className={`flex items-center py-1.5 text-sm w-full ${
+                      activeSection === 'server-config' 
+                        ? 'text-sidebar-accent-foreground font-medium' 
+                        : 'text-sidebar-foreground/70 hover:text-sidebar-foreground'
+                    } transition-colors`}
+                  >
+                    <ServerCog className="w-4 h-4 mr-2" />
+                    Configure Servers
                   </button>
                 </li>
               )}
