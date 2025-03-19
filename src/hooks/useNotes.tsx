@@ -7,7 +7,7 @@ import { useFolders } from './useFolders';
 
 export function useNotes() {
   const [notes, setNotes] = useLocalStorage<Note[]>('cognicore-notes', []);
-  const { folders } = useFolders();
+  const { folderTree } = useFolders();
   
   const addNote = useCallback((title: string, content: string, folderId: string) => {
     const newNote: Note = {
@@ -75,8 +75,8 @@ export function useNotes() {
     embeddingModelName: string = 'default',
     similarityThreshold: number = 0.3
   ) => {
-    return await suggestOrganization(notes, folders, embeddingModelName, similarityThreshold);
-  }, [notes, folders]);
+    return await suggestOrganization(notes, folderTree, embeddingModelName, similarityThreshold);
+  }, [notes, folderTree]);
   
   // Get recently modified notes
   const recentNotes = useMemo(() => {

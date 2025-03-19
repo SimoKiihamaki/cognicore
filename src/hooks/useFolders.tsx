@@ -4,7 +4,7 @@ import { useLocalStorage } from './useLocalStorage';
 import { v4 as uuidv4 } from 'uuid';
 
 // Define the Folder type
-interface Folder {
+export interface Folder {
   id: string;
   name: string;
   parentId: string | null;
