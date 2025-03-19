@@ -10,6 +10,7 @@ import ChatInterface from '@/components/ChatInterface';
 import { Toaster } from '@/components/ui/sonner';
 import { useFolders } from '@/hooks/useFolders';
 import { useNotes } from '@/hooks/useNotes';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 
 const Index = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -57,16 +58,25 @@ const Index = () => {
             onToggleChat={toggleChat}
             showChat={showChat}
           />
-          <div className="flex-1 flex overflow-hidden">
-            <main className="flex-1 overflow-hidden">
-              {renderActiveSection()}
-            </main>
-            
-            {showChat && (
-              <div className="h-full border-l border-border w-72 md:w-96 hidden md:block transition-all">
-                <ChatInterface />
-              </div>
-            )}
+          <div className="flex-1 overflow-hidden">
+            <ResizablePanelGroup direction="horizontal">
+              <ResizablePanel defaultSize={75} minSize={30}>
+                <main className="h-full overflow-auto">
+                  {renderActiveSection()}
+                </main>
+              </ResizablePanel>
+              
+              {showChat && (
+                <>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+                    <div className="h-full border-l border-border">
+                      <ChatInterface />
+                    </div>
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
           </div>
         </div>
       </div>
