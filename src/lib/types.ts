@@ -3,9 +3,16 @@ export interface Note {
   id: string;
   title: string;
   content: string;
+  folderId: string;
   embeddings?: number[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  parentId: string | null;
 }
 
 export interface ChatMessage {
@@ -22,6 +29,8 @@ export interface Settings {
   secondaryModelName: string;
   folderPaths: string[];
   similarityThreshold: number;
+  autoOrganizeNotes: boolean;
+  embeddingModelName: string;
 }
 
 export interface GraphNode {

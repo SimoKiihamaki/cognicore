@@ -10,7 +10,9 @@ const defaultSettings: Settings = {
   primaryModelName: 'default-model',
   secondaryModelName: '',
   folderPaths: [],
-  similarityThreshold: 0.7
+  similarityThreshold: 0.7,
+  autoOrganizeNotes: false,
+  embeddingModelName: 'Xenova/all-MiniLM-L6-v2'
 };
 
 const SettingsPanel = () => {
@@ -149,6 +151,21 @@ const SettingsPanel = () => {
                 Leave empty to use only the primary model.
               </p>
             </div>
+            
+            <div className="space-y-2">
+              <label htmlFor="embeddingModel" className="text-sm">Embedding Model</label>
+              <input
+                id="embeddingModel"
+                type="text"
+                value={settings.embeddingModelName}
+                onChange={(e) => setSettings({...settings, embeddingModelName: e.target.value})}
+                className="w-full glass px-3 py-2 rounded-lg focus:outline-none focus-ring"
+                placeholder="Model name for embeddings generation"
+              />
+              <p className="text-xs text-muted-foreground">
+                Used for indexing and similarity connections.
+              </p>
+            </div>
           </div>
           
           <div className="space-y-3">
@@ -221,6 +238,33 @@ const SettingsPanel = () => {
               />
               <p className="text-xs text-muted-foreground">
                 Higher values require notes to be more similar to be connected in the graph.
+              </p>
+            </div>
+            
+            <div className="space-y-2 mt-4">
+              <div className="flex items-center justify-between">
+                <label htmlFor="autoOrganize" className="text-sm">Auto-organize notes</label>
+                <div className="relative inline-block w-10 mr-2 align-middle select-none">
+                  <input
+                    id="autoOrganize"
+                    type="checkbox"
+                    checked={settings.autoOrganizeNotes}
+                    onChange={(e) => setSettings({...settings, autoOrganizeNotes: e.target.checked})}
+                    className="sr-only"
+                  />
+                  <div 
+                    className={`block h-6 rounded-full ${settings.autoOrganizeNotes ? 'bg-primary' : 'bg-gray-600'} transition-colors`}
+                  >
+                    <div
+                      className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                        settings.autoOrganizeNotes ? 'transform translate-x-4' : ''
+                      }`}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Let the embedding model suggest how to organize your notes into folders.
               </p>
             </div>
           </div>

@@ -19,7 +19,7 @@ const Header = ({ onToggleSidebar }: HeaderProps) => {
         </button>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-          <h1 className="text-lg font-semibold tracking-tight">Lean Reor</h1>
+          <h1 className="text-lg font-semibold tracking-tight">CogniCore</h1>
         </div>
       </div>
       
