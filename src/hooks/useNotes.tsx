@@ -1,10 +1,13 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { Note } from '@/lib/types';
+import { suggestOrganization } from '@/utils/noteOrganizer';
+import { useFolders } from './useFolders';
 
 export function useNotes() {
   const [notes, setNotes] = useLocalStorage<Note[]>('cognicore-notes', []);
+  const { folders } = useFolders();
   
   const addNote = useCallback((title: string, content: string, folderId: string) => {
     const newNote: Note = {
@@ -50,6 +53,38 @@ export function useNotes() {
     return notes.find(note => note.id === noteId) || null;
   }, [notes]);
   
+  const moveNoteToFolder = useCallback((noteId: string, targetFolderId: string) => {
+    updateNote(noteId, { folderId: targetFolderId });
+  }, [updateNote]);
+  
+  const searchNotes = useCallback((query: string) => {
+    const searchTerms = query.toLowerCase().trim().split(/\s+/);
+    
+    return notes.filter(note => {
+      const titleLower = note.title.toLowerCase();
+      const contentLower = note.content.toLowerCase();
+      
+      // Check if all search terms are present in either title or content
+      return searchTerms.every(term => 
+        titleLower.includes(term) || contentLower.includes(term)
+      );
+    });
+  }, [notes]);
+  
+  const getOrganizationSuggestions = useCallback(async (
+    embeddingModelName: string = 'default',
+    similarityThreshold: number = 0.3
+  ) => {
+    return await suggestOrganization(notes, folders, embeddingModelName, similarityThreshold);
+  }, [notes, folders]);
+  
+  // Get recently modified notes
+  const recentNotes = useMemo(() => {
+    return [...notes]
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 5);
+  }, [notes]);
+  
   return {
     notes,
     addNote,
@@ -57,6 +92,10 @@ export function useNotes() {
     deleteNote,
     getNotesByFolder,
     getAllNotesCount,
-    getNote
+    getNote,
+    moveNoteToFolder,
+    searchNotes,
+    getOrganizationSuggestions,
+    recentNotes
   };
 }

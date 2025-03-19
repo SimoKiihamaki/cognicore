@@ -8,6 +8,7 @@ import NoteEditor from '@/components/NoteEditor';
 import SettingsPanel from '@/components/SettingsPanel';
 import { useFolders } from '@/hooks/useFolders';
 import { useNotes } from '@/hooks/useNotes';
+import { Toaster } from '@/components/ui/sonner';
 
 const Index = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -24,7 +25,7 @@ const Index = () => {
       case 'chat':
         return <ChatInterface />;
       case 'graph':
-        return <GraphVisualization />;
+        return <GraphVisualization notes={notes} />;
       case 'editor':
         return <NoteEditor />;
       case 'settings':
@@ -35,7 +36,7 @@ const Index = () => {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-background">
       <div className="flex h-full">
         <Sidebar 
           isOpen={sidebarOpen} 
@@ -51,6 +52,7 @@ const Index = () => {
           </main>
         </div>
       </div>
+      <Toaster position="bottom-right" />
     </div>
   );
 };
