@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Settings } from '@/lib/types';
@@ -21,7 +20,7 @@ const SettingsPanel = () => {
   
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'untested' | 'success' | 'error'>('untested');
-  const { notes, updateNote } = useNotes();
+  const { notes, indexedFiles, updateNote } = useNotes();
   const { folders } = useFolders();
   
   const handleInputChange = (field: keyof Settings, value: any) => {
@@ -95,22 +94,24 @@ const SettingsPanel = () => {
     }
     
     toast({
-      title: "Organizing notes",
+      title: "Organizing content",
       description: "This may take a moment...",
     });
     
     try {
-      const count = await organizeNotes(
+      const result = await organizeNotes(
         notes,
+        indexedFiles,
         folders,
         (noteId, folderId) => updateNote(noteId, { folderId }),
         settings.embeddingModelName,
-        settings.similarityThreshold
+        settings.similarityThreshold,
+        settings.autoOrganizeNotes
       );
       
       toast({
         title: "Organization complete",
-        description: `${count} notes were organized into folders`,
+        description: `${result.appliedCount} notes were organized into folders. ${result.suggestions.length} organization suggestions were generated.`,
       });
     } catch (error) {
       toast({
@@ -245,7 +246,7 @@ const SettingsPanel = () => {
         </div>
         
         <div className="space-y-4">
-          <h3 className="text-md font-medium">Note Organization</h3>
+          <h3 className="text-md font-medium">Content Organization</h3>
           
           <div className="glass p-4 rounded-lg space-y-4">
             <div>
@@ -278,7 +279,7 @@ const SettingsPanel = () => {
                 className="w-full"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Higher values require notes to be more similar to be connected in the graph view.
+                Higher values require content to be more similar for organization suggestions and graph connections.
               </p>
             </div>
             
@@ -292,8 +293,13 @@ const SettingsPanel = () => {
                     : 'bg-muted text-muted-foreground cursor-not-allowed'
                 }`}
               >
-                Organize Notes Now
+                Analyze and Organize Content
               </button>
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                This will analyze all notes and indexed files, providing organization suggestions and applying them to notes.
+                <br />
+                <span className="font-medium">Note:</span> Indexed files will not be automatically moved.
+              </p>
             </div>
           </div>
         </div>

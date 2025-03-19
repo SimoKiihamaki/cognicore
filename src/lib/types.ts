@@ -9,6 +9,17 @@ export interface Note {
   updatedAt: Date;
 }
 
+export interface IndexedFile {
+  id: string;
+  filename: string;
+  filepath: string;
+  content?: string;
+  filetype: string;
+  lastModified: Date;
+  size: number;
+  embeddings?: number[];
+}
+
 export interface Folder {
   id: string;
   name: string;

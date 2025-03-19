@@ -1,12 +1,12 @@
-
 import { useState, useCallback, useMemo } from 'react';
 import { useLocalStorage } from './useLocalStorage';
-import { Note } from '@/lib/types';
-import { suggestOrganization } from '@/utils/noteOrganizer';
+import { Note, IndexedFile } from '@/lib/types';
+import { suggestOrganization, findSimilarContent } from '@/utils/noteOrganizer';
 import { useFolders } from './useFolders';
 
 export function useNotes() {
   const [notes, setNotes] = useLocalStorage<Note[]>('cognicore-notes', []);
+  const [indexedFiles, setIndexedFiles] = useLocalStorage<IndexedFile[]>('cognicore-indexed-files', []);
   const { folderTree } = useFolders();
   
   const addNote = useCallback((title: string, content: string, folderId: string) => {
@@ -75,10 +75,21 @@ export function useNotes() {
     embeddingModelName: string = 'default',
     similarityThreshold: number = 0.3
   ) => {
-    return await suggestOrganization(notes, folderTree, embeddingModelName, similarityThreshold);
-  }, [notes, folderTree]);
+    return await suggestOrganization(
+      [...notes, ...indexedFiles],
+      folderTree,
+      embeddingModelName,
+      similarityThreshold
+    );
+  }, [notes, indexedFiles, folderTree]);
   
-  // Get recently modified notes
+  const findSimilarItems = useCallback((
+    itemId: string,
+    similarityThreshold: number = 0.3
+  ) => {
+    return findSimilarContent(itemId, [...notes, ...indexedFiles], similarityThreshold);
+  }, [notes, indexedFiles]);
+  
   const recentNotes = useMemo(() => {
     return [...notes]
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -87,6 +98,7 @@ export function useNotes() {
   
   return {
     notes,
+    indexedFiles,
     addNote,
     updateNote,
     deleteNote,
@@ -96,6 +108,7 @@ export function useNotes() {
     moveNoteToFolder,
     searchNotes,
     getOrganizationSuggestions,
+    findSimilarItems,
     recentNotes
   };
 }
