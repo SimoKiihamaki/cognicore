@@ -1,289 +1,302 @@
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Settings } from '@/lib/types';
-import { Save, Plus, X } from 'lucide-react';
-
-const defaultSettings: Settings = {
-  lmStudioBaseUrl: 'http://localhost:1234/v1',
-  lmStudioApiKey: '',
-  primaryModelName: 'default-model',
-  secondaryModelName: '',
-  folderPaths: [],
-  similarityThreshold: 0.7,
-  autoOrganizeNotes: false,
-  embeddingModelName: 'Xenova/all-MiniLM-L6-v2'
-};
+import { organizeNotes } from '@/utils/noteOrganizer';
+import { useNotes } from '@/hooks/useNotes';
+import { useFolders } from '@/hooks/useFolders';
+import { toast } from '@/components/ui/use-toast';
 
 const SettingsPanel = () => {
-  const [settings, setSettings] = useLocalStorage<Settings>('settings', defaultSettings);
-  const [newFolderPath, setNewFolderPath] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [settings, setSettings] = useLocalStorage<Settings>('cognicore-settings', {
+    lmStudioBaseUrl: 'http://localhost:1234/v1',
+    lmStudioApiKey: '',
+    primaryModelName: 'Meta-Llama-3-8B-Instruct',
+    secondaryModelName: 'Phi-3-mini-4k-instruct',
+    folderPaths: [],
+    similarityThreshold: 0.75,
+    autoOrganizeNotes: false,
+    embeddingModelName: 'Xenova/all-MiniLM-L6-v2'
+  });
   
-  const handleSave = () => {
-    setIsSaving(true);
-    
-    // Simulate saving
-    setTimeout(() => {
-      setIsSaving(false);
-    }, 1000);
-  };
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'untested' | 'success' | 'error'>('untested');
+  const { notes, updateNote } = useNotes();
+  const { folders } = useFolders();
   
-  const testConnection = () => {
-    setTestStatus('testing');
-    
-    // Simulate testing connection
-    setTimeout(() => {
-      // Randomly succeed or fail for demo purposes
-      setTestStatus(Math.random() > 0.5 ? 'success' : 'error');
-      
-      // Reset after 3 seconds
-      setTimeout(() => {
-        setTestStatus('idle');
-      }, 3000);
-    }, 1500);
-  };
-  
-  const addFolderPath = () => {
-    if (newFolderPath && !settings.folderPaths.includes(newFolderPath)) {
-      setSettings({
-        ...settings,
-        folderPaths: [...settings.folderPaths, newFolderPath]
-      });
-      setNewFolderPath('');
-    }
-  };
-  
-  const removeFolderPath = (path: string) => {
+  const handleInputChange = (field: keyof Settings, value: any) => {
     setSettings({
       ...settings,
-      folderPaths: settings.folderPaths.filter(p => p !== path)
+      [field]: value
     });
   };
   
+  const handleAutoOrganizeToggle = () => {
+    const newValue = !settings.autoOrganizeNotes;
+    setSettings({
+      ...settings,
+      autoOrganizeNotes: newValue
+    });
+  };
+  
+  const handleSimilarityThresholdChange = (value: number) => {
+    setSettings({
+      ...settings,
+      similarityThreshold: Math.max(0, Math.min(1, value))
+    });
+  };
+  
+  const testConnection = async () => {
+    setIsTestingConnection(true);
+    setConnectionStatus('untested');
+    
+    try {
+      const response = await fetch(`${settings.lmStudioBaseUrl}/models`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${settings.lmStudioApiKey}`
+        }
+      });
+      
+      if (response.ok) {
+        setConnectionStatus('success');
+        toast({
+          title: "Connection successful",
+          description: "Successfully connected to LM Studio",
+        });
+      } else {
+        setConnectionStatus('error');
+        toast({
+          title: "Connection failed",
+          description: `Error: ${response.statusText}`,
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      setConnectionStatus('error');
+      toast({
+        title: "Connection failed",
+        description: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+  
+  const triggerAutoOrganize = async () => {
+    if (!settings.autoOrganizeNotes) {
+      toast({
+        title: "Auto-organize is disabled",
+        description: "Enable auto-organize in settings first",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    toast({
+      title: "Organizing notes",
+      description: "This may take a moment...",
+    });
+    
+    try {
+      const count = await organizeNotes(
+        notes,
+        folders,
+        (noteId, folderId) => updateNote(noteId, { folderId }),
+        settings.embeddingModelName,
+        settings.similarityThreshold
+      );
+      
+      toast({
+        title: "Organization complete",
+        description: `${count} notes were organized into folders`,
+      });
+    } catch (error) {
+      toast({
+        title: "Organization failed",
+        description: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    }
+  };
+  
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col overflow-auto scrollbar-thin">
       <div className="p-4 border-b border-border">
         <h2 className="text-lg font-medium">Settings</h2>
         <p className="text-sm text-muted-foreground">
-          Configure your LM Studio connection and preferences.
+          Configure CogniCore to connect with your local LM Studio instance.
         </p>
       </div>
       
-      <div className="flex-1 p-4 overflow-y-auto scrollbar-thin">
-        <div className="space-y-6 animate-fade-in">
-          <div className="space-y-3">
-            <h3 className="text-md font-medium">LM Studio Connection</h3>
-            
-            <div className="space-y-2">
-              <label htmlFor="baseUrl" className="text-sm">Base URL</label>
+      <div className="flex-1 p-4 space-y-6">
+        <div className="space-y-4">
+          <h3 className="text-md font-medium">LM Studio Connection</h3>
+          
+          <div className="glass p-4 rounded-lg space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="baseUrl">
+                Base URL
+              </label>
               <input
                 id="baseUrl"
                 type="text"
                 value={settings.lmStudioBaseUrl}
-                onChange={(e) => setSettings({...settings, lmStudioBaseUrl: e.target.value})}
-                className="w-full glass px-3 py-2 rounded-lg focus:outline-none focus-ring"
+                onChange={(e) => handleInputChange('lmStudioBaseUrl', e.target.value)}
+                className="w-full p-2 rounded-md border border-border bg-background"
                 placeholder="http://localhost:1234/v1"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                The URL where LM Studio is running (usually http://localhost:1234/v1)
+              </p>
             </div>
             
-            <div className="space-y-2">
-              <label htmlFor="apiKey" className="text-sm">API Key (optional)</label>
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="apiKey">
+                API Key
+              </label>
               <input
                 id="apiKey"
                 type="password"
                 value={settings.lmStudioApiKey}
-                onChange={(e) => setSettings({...settings, lmStudioApiKey: e.target.value})}
-                className="w-full glass px-3 py-2 rounded-lg focus:outline-none focus-ring"
-                placeholder="Enter API key if required"
+                onChange={(e) => handleInputChange('lmStudioApiKey', e.target.value)}
+                className="w-full p-2 rounded-md border border-border bg-background"
+                placeholder="Your LM Studio API key"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Leave empty if LM Studio doesn't require authentication
+              </p>
             </div>
             
             <div className="flex justify-end">
               <button
                 onClick={testConnection}
-                disabled={testStatus === 'testing'}
-                className={`px-3 py-1.5 rounded-lg focus-ring ${
-                  testStatus === 'testing'
-                    ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                    : testStatus === 'success'
-                    ? 'bg-green-600/20 text-green-600'
-                    : testStatus === 'error'
-                    ? 'bg-destructive/20 text-destructive'
-                    : 'glass button-hover-effect'
+                disabled={isTestingConnection}
+                className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 ${
+                  connectionStatus === 'success'
+                    ? 'bg-green-600/20 text-green-600 hover:bg-green-600/30'
+                    : connectionStatus === 'error'
+                    ? 'bg-red-600/20 text-red-600 hover:bg-red-600/30'
+                    : 'bg-primary/10 text-primary hover:bg-primary/20'
                 }`}
               >
-                {testStatus === 'testing' ? 'Testing...' : 
-                 testStatus === 'success' ? 'Connected successfully' : 
-                 testStatus === 'error' ? 'Connection failed' : 
-                 'Test Connection'}
+                {isTestingConnection ? 'Testing...' : 'Test Connection'}
               </button>
             </div>
           </div>
+        </div>
+        
+        <div className="space-y-4">
+          <h3 className="text-md font-medium">Models</h3>
           
-          <div className="space-y-3">
-            <h3 className="text-md font-medium">Model Configuration</h3>
-            
-            <div className="space-y-2">
-              <label htmlFor="primaryModel" className="text-sm">Primary Model</label>
+          <div className="glass p-4 rounded-lg space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="primaryModel">
+                Primary Model
+              </label>
               <input
                 id="primaryModel"
                 type="text"
                 value={settings.primaryModelName}
-                onChange={(e) => setSettings({...settings, primaryModelName: e.target.value})}
-                className="w-full glass px-3 py-2 rounded-lg focus:outline-none focus-ring"
-                placeholder="Model name for detailed tasks"
+                onChange={(e) => handleInputChange('primaryModelName', e.target.value)}
+                className="w-full p-2 rounded-md border border-border bg-background"
+                placeholder="Model name (e.g., Meta-Llama-3-8B-Instruct)"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Used for detailed interactions. Should match exactly the model name in LM Studio.
+              </p>
             </div>
             
-            <div className="space-y-2">
-              <label htmlFor="secondaryModel" className="text-sm">Secondary Model (optional)</label>
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="secondaryModel">
+                Secondary Model
+              </label>
               <input
                 id="secondaryModel"
                 type="text"
                 value={settings.secondaryModelName}
-                onChange={(e) => setSettings({...settings, secondaryModelName: e.target.value})}
-                className="w-full glass px-3 py-2 rounded-lg focus:outline-none focus-ring"
-                placeholder="Model name for lightweight tasks"
+                onChange={(e) => handleInputChange('secondaryModelName', e.target.value)}
+                className="w-full p-2 rounded-md border border-border bg-background"
+                placeholder="Model name (e.g., Phi-3-mini-4k-instruct)"
               />
-              <p className="text-xs text-muted-foreground">
-                Leave empty to use only the primary model.
+              <p className="text-xs text-muted-foreground mt-1">
+                Used for rapid tasks. Should be a faster, lighter model.
               </p>
             </div>
             
-            <div className="space-y-2">
-              <label htmlFor="embeddingModel" className="text-sm">Embedding Model</label>
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="embeddingModel">
+                Embedding Model
+              </label>
               <input
                 id="embeddingModel"
                 type="text"
                 value={settings.embeddingModelName}
-                onChange={(e) => setSettings({...settings, embeddingModelName: e.target.value})}
-                className="w-full glass px-3 py-2 rounded-lg focus:outline-none focus-ring"
-                placeholder="Model name for embeddings generation"
+                onChange={(e) => handleInputChange('embeddingModelName', e.target.value)}
+                className="w-full p-2 rounded-md border border-border bg-background"
+                placeholder="Model name (e.g., Xenova/all-MiniLM-L6-v2)"
               />
-              <p className="text-xs text-muted-foreground">
-                Used for indexing and similarity connections.
-              </p>
-            </div>
-          </div>
-          
-          <div className="space-y-3">
-            <h3 className="text-md font-medium">Folder Paths</h3>
-            <p className="text-sm text-muted-foreground">
-              Specify folders to monitor for files.
-            </p>
-            
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newFolderPath}
-                  onChange={(e) => setNewFolderPath(e.target.value)}
-                  placeholder="Enter folder path"
-                  className="flex-1 glass px-3 py-2 rounded-lg focus:outline-none focus-ring"
-                />
-                
-                <button
-                  onClick={addFolderPath}
-                  disabled={!newFolderPath}
-                  className={`px-3 py-2 rounded-lg flex items-center ${
-                    !newFolderPath
-                      ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                      : 'bg-primary/10 text-primary hover:bg-primary/20 button-hover-effect focus-ring'
-                  }`}
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="space-y-2 mt-2">
-                {settings.folderPaths.length > 0 ? (
-                  settings.folderPaths.map((path, index) => (
-                    <div key={index} className="flex items-center justify-between glass px-3 py-2 rounded-lg">
-                      <span className="text-sm truncate flex-1">{path}</span>
-                      <button
-                        onClick={() => removeFolderPath(path)}
-                        className="ml-2 p-1 rounded-md hover:bg-secondary button-hover-effect focus-ring"
-                      >
-                        <X className="w-4 h-4 text-muted-foreground" />
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground py-2">
-                    No folders added yet.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          <div className="space-y-3">
-            <h3 className="text-md font-medium">Note Connections</h3>
-            
-            <div className="space-y-2">
-              <label htmlFor="threshold" className="text-sm flex justify-between">
-                <span>Similarity Threshold: {settings.similarityThreshold.toFixed(2)}</span>
-              </label>
-              <input
-                id="threshold"
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={settings.similarityThreshold}
-                onChange={(e) => setSettings({...settings, similarityThreshold: parseFloat(e.target.value)})}
-                className="w-full"
-              />
-              <p className="text-xs text-muted-foreground">
-                Higher values require notes to be more similar to be connected in the graph.
-              </p>
-            </div>
-            
-            <div className="space-y-2 mt-4">
-              <div className="flex items-center justify-between">
-                <label htmlFor="autoOrganize" className="text-sm">Auto-organize notes</label>
-                <div className="relative inline-block w-10 mr-2 align-middle select-none">
-                  <input
-                    id="autoOrganize"
-                    type="checkbox"
-                    checked={settings.autoOrganizeNotes}
-                    onChange={(e) => setSettings({...settings, autoOrganizeNotes: e.target.checked})}
-                    className="sr-only"
-                  />
-                  <div 
-                    className={`block h-6 rounded-full ${settings.autoOrganizeNotes ? 'bg-primary' : 'bg-gray-600'} transition-colors`}
-                  >
-                    <div
-                      className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
-                        settings.autoOrganizeNotes ? 'transform translate-x-4' : ''
-                      }`}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Let the embedding model suggest how to organize your notes into folders.
+              <p className="text-xs text-muted-foreground mt-1">
+                Used for creating note embeddings and calculating similarity.
               </p>
             </div>
           </div>
         </div>
-      </div>
-      
-      <div className="p-4 border-t border-border">
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className={`w-full py-2 rounded-lg flex items-center justify-center gap-2 ${
-            isSaving
-              ? 'bg-muted text-muted-foreground cursor-not-allowed'
-              : 'bg-primary text-primary-foreground hover:bg-primary/90 button-hover-effect focus-ring'
-          }`}
-        >
-          <Save className="w-5 h-5" />
-          <span>{isSaving ? 'Saving...' : 'Save Settings'}</span>
-        </button>
+        
+        <div className="space-y-4">
+          <h3 className="text-md font-medium">Note Organization</h3>
+          
+          <div className="glass p-4 rounded-lg space-y-4">
+            <div>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={settings.autoOrganizeNotes}
+                  onChange={handleAutoOrganizeToggle}
+                  className="rounded"
+                />
+                <span>Auto-organize notes using embedding model</span>
+              </label>
+              <p className="text-xs text-muted-foreground mt-1 ml-6">
+                Automatically suggest folder organization based on note content
+              </p>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="similarityThreshold">
+                Similarity Threshold: {settings.similarityThreshold.toFixed(2)}
+              </label>
+              <input
+                id="similarityThreshold"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={settings.similarityThreshold}
+                onChange={(e) => handleSimilarityThresholdChange(parseFloat(e.target.value))}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Higher values require notes to be more similar to be connected in the graph view.
+              </p>
+            </div>
+            
+            <div className="pt-2">
+              <button
+                onClick={triggerAutoOrganize}
+                disabled={!settings.autoOrganizeNotes}
+                className={`w-full py-2 rounded-md ${
+                  settings.autoOrganizeNotes
+                    ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                    : 'bg-muted text-muted-foreground cursor-not-allowed'
+                }`}
+              >
+                Organize Notes Now
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

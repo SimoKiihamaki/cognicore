@@ -6,10 +6,14 @@ import ChatInterface from '@/components/ChatInterface';
 import GraphVisualization from '@/components/GraphVisualization';
 import NoteEditor from '@/components/NoteEditor';
 import SettingsPanel from '@/components/SettingsPanel';
+import { useFolders } from '@/hooks/useFolders';
+import { useNotes } from '@/hooks/useNotes';
 
 const Index = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('chat');
+  const { folderTree } = useFolders();
+  const { notes } = useNotes();
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);

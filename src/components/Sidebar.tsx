@@ -1,6 +1,18 @@
 
-import { useState } from 'react';
-import { ChevronLeft, MessageCircle, Network, FileText, Settings, Plus, FolderPlus, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronLeft, MessageCircle, Network, FileText, Settings, Plus, FolderPlus } from 'lucide-react';
+import { useFolders } from '@/hooks/useFolders';
+import { useNotes } from '@/hooks/useNotes';
+import FolderTree from './FolderTree';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -9,25 +21,28 @@ interface SidebarProps {
   onSectionChange: (section: string) => void;
 }
 
-interface FolderItem {
-  id: string;
-  name: string;
-  parentId: string | null;
-  isExpanded: boolean;
-  children: FolderItem[];
-}
-
 const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarProps) => {
   const [notesExpanded, setNotesExpanded] = useState(true);
-  const [folders, setFolders] = useState<FolderItem[]>([
-    {
-      id: 'root',
-      name: 'Notes',
-      parentId: null,
-      isExpanded: true,
-      children: []
-    }
-  ]);
+  const [activeFolder, setActiveFolder] = useState<string | null>(null);
+  const [isAddFolderDialogOpen, setIsAddFolderDialogOpen] = useState(false);
+  const [isRenameFolderDialogOpen, setIsRenameFolderDialogOpen] = useState(false);
+  const [isDeleteFolderDialogOpen, setIsDeleteFolderDialogOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [targetFolderId, setTargetFolderId] = useState<string | null>(null);
+  
+  const { 
+    folderTree, 
+    addFolder, 
+    renameFolder, 
+    deleteFolder, 
+    toggleFolderExpanded 
+  } = useFolders();
+  
+  const { 
+    notes, 
+    getNotesByFolder, 
+    getAllNotesCount 
+  } = useNotes();
   
   const handleSectionClick = (section: string) => {
     onSectionChange(section);
@@ -37,105 +52,85 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
     }
   };
 
-  const toggleFolder = (folderId: string) => {
-    const updateFolderExpansion = (items: FolderItem[]): FolderItem[] => {
-      return items.map(folder => {
-        if (folder.id === folderId) {
-          return { ...folder, isExpanded: !folder.isExpanded };
-        }
-        
+  const handleFolderClick = (folderId: string) => {
+    setActiveFolder(folderId);
+    // You might want to trigger some action here like loading notes for this folder
+    // For now, we'll just navigate to the editor section
+    onSectionChange('editor');
+  };
+  
+  const handleAddSubfolder = (parentId: string) => {
+    setTargetFolderId(parentId);
+    setNewFolderName('');
+    setIsAddFolderDialogOpen(true);
+  };
+  
+  const handleRenameFolder = (folderId: string) => {
+    setTargetFolderId(folderId);
+    // Find the current folder name
+    const findFolderName = (folders: typeof folderTree, id: string): string => {
+      for (const folder of folders) {
+        if (folder.id === id) return folder.name;
         if (folder.children.length > 0) {
-          return {
-            ...folder,
-            children: updateFolderExpansion(folder.children)
-          };
+          const name = findFolderName(folder.children, id);
+          if (name) return name;
         }
-        
-        return folder;
-      });
+      }
+      return '';
     };
     
-    setFolders(updateFolderExpansion(folders));
+    setNewFolderName(findFolderName(folderTree, folderId));
+    setIsRenameFolderDialogOpen(true);
   };
-
-  const addSubFolder = (parentId: string) => {
-    const newFolderId = `folder-${Date.now()}`;
-    const newFolderName = `New Folder`;
+  
+  const handleDeleteFolder = (folderId: string) => {
+    setTargetFolderId(folderId);
+    setIsDeleteFolderDialogOpen(true);
+  };
+  
+  const confirmAddFolder = () => {
+    if (targetFolderId && newFolderName.trim()) {
+      addFolder(newFolderName.trim(), targetFolderId);
+      setIsAddFolderDialogOpen(false);
+    }
+  };
+  
+  const confirmRenameFolder = () => {
+    if (targetFolderId && newFolderName.trim()) {
+      renameFolder(targetFolderId, newFolderName.trim());
+      setIsRenameFolderDialogOpen(false);
+    }
+  };
+  
+  const confirmDeleteFolder = () => {
+    if (targetFolderId) {
+      deleteFolder(targetFolderId);
+      setIsDeleteFolderDialogOpen(false);
+    }
+  };
+  
+  // Calculate notes count per folder
+  const notesInFolder: Record<string, number> = {};
+  
+  const countNotesInFolder = (folderId: string): number => {
+    const directNotes = notes.filter(note => note.folderId === folderId).length;
     
-    const addFolder = (items: FolderItem[]): FolderItem[] => {
-      return items.map(folder => {
-        if (folder.id === parentId) {
-          return {
-            ...folder,
-            isExpanded: true,
-            children: [
-              ...folder.children,
-              {
-                id: newFolderId,
-                name: newFolderName,
-                parentId: parentId,
-                isExpanded: false,
-                children: []
-              }
-            ]
-          };
-        }
-        
-        if (folder.children.length > 0) {
-          return {
-            ...folder,
-            children: addFolder(folder.children)
-          };
-        }
-        
-        return folder;
-      });
-    };
+    // Count notes in subfolders too
+    const subfolders = folderTree.flatMap(f => f.children)
+      .filter(folder => folder.parentId === folderId);
     
-    setFolders(addFolder(folders));
+    const subfoldersNotes = subfolders.reduce(
+      (sum, folder) => sum + countNotesInFolder(folder.id), 
+      0
+    );
+    
+    return directNotes + subfoldersNotes;
   };
-
-  const renderFolders = (folderItems: FolderItem[], level = 0) => {
-    return folderItems.map(folder => (
-      <div key={folder.id} className="mt-1">
-        <div 
-          className={`flex items-center justify-between ${level > 0 ? `ml-${level * 3}` : ''} px-3 py-1.5 rounded-lg transition-colors hover:bg-sidebar-accent/50 text-sidebar-foreground`}
-        >
-          <div className="flex items-center flex-1">
-            <button
-              onClick={() => toggleFolder(folder.id)}
-              className="mr-1.5 w-5 h-5 flex items-center justify-center"
-            >
-              {folder.children.length > 0 ? (
-                folder.isExpanded ? (
-                  <ChevronDown className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )
-              ) : null}
-            </button>
-            <FileText className="w-4 h-4 mr-1.5" />
-            <span className="text-sm truncate">{folder.name}</span>
-          </div>
-          
-          <button
-            onClick={() => addSubFolder(folder.id)}
-            className="p-1 rounded-md hover:bg-sidebar-accent button-hover-effect"
-            title="Add subfolder"
-          >
-            <FolderPlus className="w-3.5 h-3.5" />
-          </button>
-        </div>
-        
-        {folder.isExpanded && folder.children.length > 0 && (
-          <div className="ml-3 border-l border-sidebar-border pl-2">
-            {renderFolders(folder.children, level + 1)}
-          </div>
-        )}
-      </div>
-    ));
-  };
-
+  
+  folderTree.forEach(folder => {
+    notesInFolder[folder.id] = countNotesInFolder(folder.id);
+  });
+  
   return (
     <>
       {/* Mobile overlay */}
@@ -202,13 +197,22 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
                     <span>Notes</span>
                   </div>
                   <span className="text-xs bg-sidebar-accent px-2 py-0.5 rounded-full">
-                    0
+                    {getAllNotesCount()}
                   </span>
                 </button>
               </li>
               {notesExpanded && (
                 <li className="ml-9 mt-1">
-                  {renderFolders(folders)}
+                  <FolderTree 
+                    folders={folderTree}
+                    onFolderClick={handleFolderClick}
+                    onToggleExpand={toggleFolderExpanded}
+                    onAddSubfolder={handleAddSubfolder}
+                    onRenameFolder={handleRenameFolder}
+                    onDeleteFolder={handleDeleteFolder}
+                    activeFolder={activeFolder}
+                    notesInFolder={notesInFolder}
+                  />
                   
                   <button 
                     onClick={() => handleSectionClick('editor')}
@@ -244,6 +248,78 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
           </div>
         </div>
       </aside>
+      
+      {/* Add Folder Dialog */}
+      <Dialog open={isAddFolderDialogOpen} onOpenChange={setIsAddFolderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Folder name"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              className="w-full"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddFolderDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmAddFolder}>
+              Add Folder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Rename Folder Dialog */}
+      <Dialog open={isRenameFolderDialogOpen} onOpenChange={setIsRenameFolderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Folder</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Folder name"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              className="w-full"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameFolderDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmRenameFolder}>
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Folder Dialog */}
+      <Dialog open={isDeleteFolderDialogOpen} onOpenChange={setIsDeleteFolderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Folder</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p>Are you sure you want to delete this folder and all its contents? This action cannot be undone.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteFolderDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteFolder}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
