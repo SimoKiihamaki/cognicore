@@ -35,6 +35,26 @@ const ThemeSwitcher = () => {
       document.documentElement.style.setProperty('--border', '220 14% 90%');
       document.documentElement.style.setProperty('--input', '220 14% 90%');
       document.documentElement.style.setProperty('--ring', '217 91% 60%');
+    } else if (theme === 'dark') {
+      document.documentElement.style.setProperty('--background', '220 14% 10%');
+      document.documentElement.style.setProperty('--foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--card', '220 14% 13%');
+      document.documentElement.style.setProperty('--card-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--popover', '220 14% 12%');
+      document.documentElement.style.setProperty('--popover-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--primary', '217 91% 60%');
+      document.documentElement.style.setProperty('--primary-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--secondary', '220 14% 15%');
+      document.documentElement.style.setProperty('--secondary-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--muted', '220 14% 17%');
+      document.documentElement.style.setProperty('--muted-foreground', '215 20% 65%');
+      document.documentElement.style.setProperty('--accent', '217 91% 55%');
+      document.documentElement.style.setProperty('--accent-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--destructive', '0 62% 50%');
+      document.documentElement.style.setProperty('--destructive-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--border', '217 19% 27%');
+      document.documentElement.style.setProperty('--input', '217 19% 27%');
+      document.documentElement.style.setProperty('--ring', '217 91% 60%');
     }
     
     root.classList.add(theme);
