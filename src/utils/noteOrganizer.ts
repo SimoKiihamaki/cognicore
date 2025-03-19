@@ -2,15 +2,16 @@
 import { 
   suggestOrganization,
   organizeNotes,
-  findSimilarContent,
+  findSimilarContent
+} from './organization';
+
+export type {
   ContentItem,
   OrganizationSuggestion
-} from './organization';
+} from './organization/types';
 
 export {
   suggestOrganization,
   organizeNotes,
-  findSimilarContent,
-  ContentItem,
-  OrganizationSuggestion
+  findSimilarContent
 };
