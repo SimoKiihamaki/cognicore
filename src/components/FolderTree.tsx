@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
-import { FolderWithChildren } from '@/hooks/useFolders';
-import { ChevronDown, ChevronRight, FileText, Folder, FolderPlus, Edit2, Trash, MoreHorizontal } from 'lucide-react';
+import { Folder } from '@/hooks/useFolders';
+import { ChevronDown, ChevronRight, FileText, Folder as FolderIcon, FolderPlus, Edit2, Trash, MoreHorizontal } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 interface FolderTreeProps {
-  folders: FolderWithChildren[];
+  folders: Folder[];
   onFolderClick: (folderId: string) => void;
   onToggleExpand: (folderId: string) => void;
   onAddSubfolder: (parentId: string) => void;
@@ -53,14 +53,14 @@ const FolderTree = ({
                 className="mr-1.5 w-5 h-5 flex items-center justify-center"
               >
                 {folder.children.length > 0 ? (
-                  folder.isExpanded ? (
+                  folder.expanded ? (
                     <ChevronDown className="w-4 h-4" />
                   ) : (
                     <ChevronRight className="w-4 h-4" />
                   )
                 ) : null}
               </button>
-              <Folder className="w-4 h-4 mr-1.5" />
+              <FolderIcon className="w-4 h-4 mr-1.5" />
               <span className="text-sm truncate">{folder.name}</span>
               
               {notesInFolder[folder.id] > 0 && (
@@ -100,7 +100,7 @@ const FolderTree = ({
             </DropdownMenu>
           </div>
           
-          {folder.isExpanded && folder.children.length > 0 && (
+          {folder.expanded && folder.children.length > 0 && (
             <div className="ml-3 border-l border-sidebar-border pl-2">
               <FolderTree
                 folders={folder.children}

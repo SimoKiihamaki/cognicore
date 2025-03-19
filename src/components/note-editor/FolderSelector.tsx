@@ -8,12 +8,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { FolderWithChildren } from '@/hooks/useFolders';
+import { Folder } from '@/hooks/useFolders';
 
 interface FolderSelectorProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  folderTree: FolderWithChildren[];
+  folderTree: Folder[];
   selectedFolderId: string;
   onSelect: (folderId: string) => void;
 }
@@ -25,7 +25,7 @@ const FolderSelector = ({
   selectedFolderId,
   onSelect,
 }: FolderSelectorProps) => {
-  const renderFolderOption = (folder: FolderWithChildren, level = 0) => (
+  const renderFolderOption = (folder: Folder, level = 0) => (
     <div key={folder.id}>
       <button
         className={`w-full text-left px-4 py-2 text-sm hover:bg-accent

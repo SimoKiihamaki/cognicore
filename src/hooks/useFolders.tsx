@@ -12,8 +12,12 @@ export interface Folder {
   children: Folder[];
 }
 
+// Adding this alias type for components that expect FolderWithChildren
+export type FolderWithChildren = Folder;
+
 interface FoldersContextType {
   folderTree: Folder[];
+  folders: Folder[]; // Add this property for backward compatibility
   addFolder: (name: string, parentId: string | null) => void;
   deleteFolder: (id: string) => void;
   renameFolder: (id: string, newName: string) => void;
@@ -48,9 +52,26 @@ const defaultFolders: Folder[] = [
   },
 ];
 
+// Helper function to flatten folder tree into an array
+const flattenFolders = (folderTree: Folder[]): Folder[] => {
+  let result: Folder[] = [];
+  
+  for (const folder of folderTree) {
+    result.push(folder);
+    if (folder.children.length > 0) {
+      result = result.concat(flattenFolders(folder.children));
+    }
+  }
+  
+  return result;
+};
+
 export const FoldersProvider = ({ children }: { children: ReactNode }) => {
   const [storedFolders, setStoredFolders] = useLocalStorage<Folder[]>('folders', defaultFolders);
   const [folderTree, setFolderTree] = useState<Folder[]>(storedFolders);
+  
+  // Create a flattened list of folders for backward compatibility
+  const folders = flattenFolders(folderTree);
 
   useEffect(() => {
     setStoredFolders(folderTree);
@@ -163,6 +184,7 @@ export const FoldersProvider = ({ children }: { children: ReactNode }) => {
     <FoldersContext.Provider
       value={{
         folderTree,
+        folders, // Expose the flattened folders list
         addFolder,
         deleteFolder,
         renameFolder,
