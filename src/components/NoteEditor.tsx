@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNotes } from '@/hooks/useNotes';
 import { useFolders, FolderWithChildren } from '@/hooks/useFolders';
 import { Save, MoreVertical, Trash, FolderOpen } from 'lucide-react';
@@ -18,17 +18,24 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import MarkdownToolbar from './markdown/MarkdownToolbar';
+import MarkdownPreview from './markdown/MarkdownPreview';
+import { insertMarkdown, insertLineMarkdown, handleMarkdownShortcuts } from '@/utils/markdownUtils';
 
 const NoteEditor = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [savedStatus, setSavedStatus] = useState('unsaved');
   const [selectedFolderId, setSelectedFolderId] = useState('root');
-  const [folderSelectOpen, setFolderSelectOpen] = useState(false);
   const [currentNoteId, setCurrentNoteId] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isFolderSelectorOpen, setIsFolderSelectorOpen] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  
+  const contentRef = useRef<HTMLTextAreaElement>(null);
   
   const { 
     notes, 
@@ -54,6 +61,7 @@ const NoteEditor = () => {
     setContent('');
     setCurrentNoteId(null);
     setSavedStatus('unsaved');
+    setIsPreviewMode(false);
   };
   
   // Load an existing note
@@ -65,17 +73,14 @@ const NoteEditor = () => {
       setSelectedFolderId(note.folderId);
       setCurrentNoteId(note.id);
       setSavedStatus('saved');
+      setIsPreviewMode(false);
     }
   };
   
   const handleSave = () => {
     // Require at least a title
     if (!title.trim()) {
-      toast({
-        title: "Title Required",
-        description: "Please add a title to save your note.",
-        variant: "destructive"
-      });
+      toast.error('Please add a title to save your note.');
       return;
     }
     
@@ -96,10 +101,7 @@ const NoteEditor = () => {
     
     setSavedStatus('saved');
     
-    toast({
-      title: "Note saved",
-      description: "Your note has been saved successfully.",
-    });
+    toast.success('Note saved successfully');
     
     // Reset to unsaved after 5 seconds
     setTimeout(() => {
@@ -115,10 +117,78 @@ const NoteEditor = () => {
       // Reset the editor
       createNewNote();
       
-      toast({
-        title: "Note deleted",
-        description: "Your note has been permanently deleted.",
-      });
+      toast.success('Note deleted successfully');
+    }
+  };
+  
+  const handleMarkdownAction = (action: string, options?: any) => {
+    if (!contentRef.current || isPreviewMode) return;
+    
+    const textarea = contentRef.current;
+    
+    switch (action) {
+      case 'bold':
+        insertMarkdown(textarea, '**', '**', 'bold text');
+        break;
+      case 'italic':
+        insertMarkdown(textarea, '*', '*', 'italic text');
+        break;
+      case 'strikethrough':
+        insertMarkdown(textarea, '~~', '~~', 'strikethrough text');
+        break;
+      case 'heading1':
+        insertLineMarkdown(textarea, '# ', 'Heading 1');
+        break;
+      case 'heading2':
+        insertLineMarkdown(textarea, '## ', 'Heading 2');
+        break;
+      case 'heading3':
+        insertLineMarkdown(textarea, '### ', 'Heading 3');
+        break;
+      case 'bulletList':
+        insertLineMarkdown(textarea, '- ', 'List item');
+        break;
+      case 'orderedList':
+        insertLineMarkdown(textarea, '1. ', 'List item');
+        break;
+      case 'code':
+        if (textarea.value.substring(textarea.selectionStart, textarea.selectionEnd).includes('\n')) {
+          insertMarkdown(textarea, '```\n', '\n```', 'code block');
+        } else {
+          insertMarkdown(textarea, '`', '`', 'inline code');
+        }
+        break;
+      case 'quote':
+        insertLineMarkdown(textarea, '> ', 'Blockquote');
+        break;
+      case 'link':
+        insertMarkdown(textarea, '[', '](https://example.com)', 'link text');
+        break;
+      case 'image':
+        insertMarkdown(textarea, '![', '](https://example.com/image.jpg)', 'alt text');
+        break;
+      default:
+        break;
+    }
+    
+    // Update content state after modification
+    if (textarea) {
+      setContent(textarea.value);
+    }
+  };
+  
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (contentRef.current) {
+      if (handleMarkdownShortcuts(e, contentRef.current)) {
+        // Update content state after shortcut
+        setContent(contentRef.current.value);
+      }
+    }
+    
+    // Save on Ctrl+S or Command+S
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      handleSave();
     }
   };
   
@@ -131,6 +201,10 @@ const NoteEditor = () => {
       default:
         return 'Save';
     }
+  };
+  
+  const togglePreviewMode = () => {
+    setIsPreviewMode(!isPreviewMode);
   };
   
   // Get the flat path of a folder by its ID
@@ -247,27 +321,49 @@ const NoteEditor = () => {
       )}
       
       <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto scrollbar-thin">
-        <div className="glass rounded-lg p-3">
-          <input
-            type="text"
+        {/* Title Input */}
+        <div className="glass rounded-lg">
+          <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Note title"
-            className="w-full bg-transparent border-none p-2 text-lg font-medium focus:outline-none"
+            className="border-none glass bg-transparent focus-visible:ring-0 text-lg font-medium"
           />
         </div>
         
-        <div className="flex-1 glass rounded-lg p-3">
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="Start writing..."
-            className="w-full h-full bg-transparent border-none p-2 resize-none focus:outline-none scrollbar-thin"
-          />
+        {/* Markdown Toolbar */}
+        <MarkdownToolbar
+          onActionClick={handleMarkdownAction}
+          isPreviewMode={isPreviewMode}
+          togglePreview={togglePreviewMode}
+          className="sticky top-0 z-10"
+        />
+        
+        {/* Editor / Preview Area */}
+        <div className="flex-1 glass rounded-lg overflow-hidden flex flex-col">
+          {isPreviewMode ? (
+            <div className="p-4 overflow-y-auto h-full scrollbar-thin">
+              <MarkdownPreview content={content} />
+            </div>
+          ) : (
+            <Textarea
+              ref={contentRef}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Start writing in Markdown..."
+              className="w-full h-full bg-transparent border-none p-4 resize-none focus-visible:ring-0 focus:outline-none scrollbar-thin font-mono"
+            />
+          )}
         </div>
       </div>
       
-      <div className="p-4 border-t border-border flex items-center justify-end">
+      <div className="p-4 border-t border-border flex items-center justify-between">
+        <div className="text-xs text-muted-foreground">
+          <span>Markdown supported • </span>
+          <span>Press <kbd className="px-1.5 py-0.5 bg-secondary rounded text-xs">Ctrl+S</kbd> to save</span>
+        </div>
+        
         <button 
           onClick={() => setIsDeleteDialogOpen(true)}
           className="flex items-center gap-1.5 text-destructive/70 hover:text-destructive button-hover-effect px-3 py-1.5 rounded-lg focus-ring"

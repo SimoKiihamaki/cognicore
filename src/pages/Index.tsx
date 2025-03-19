@@ -25,7 +25,7 @@ const Index = () => {
       case 'chat':
         return <ChatInterface />;
       case 'graph':
-        return <GraphVisualization notes={notes} />;
+        return <GraphVisualization />;
       case 'editor':
         return <NoteEditor />;
       case 'settings':

@@ -62,10 +62,10 @@ export function useFolders() {
       
       directChildren.forEach(child => {
         const grandChildren = getAllChildIds(child.id);
-        allChildren.push(...grandChildren.map(id => id));
+        allChildren.push(...grandChildren.map(childFolder => childFolder.id));
       });
       
-      return allChildren.map(f => f.id);
+      return allChildren.map(childFolder => childFolder.id);
     };
     
     const childIds = getAllChildIds(folderId);
