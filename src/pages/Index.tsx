@@ -1,11 +1,51 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { useState } from 'react';
+import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
+import ChatInterface from '@/components/ChatInterface';
+import GraphVisualization from '@/components/GraphVisualization';
+import NoteEditor from '@/components/NoteEditor';
+import SettingsPanel from '@/components/SettingsPanel';
 
 const Index = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('chat');
+
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case 'chat':
+        return <ChatInterface />;
+      case 'graph':
+        return <GraphVisualization />;
+      case 'editor':
+        return <NoteEditor />;
+      case 'settings':
+        return <SettingsPanel />;
+      default:
+        return <ChatInterface />;
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <div className="h-full flex flex-col">
+      <div className="flex h-full">
+        <Sidebar 
+          isOpen={sidebarOpen} 
+          onClose={() => setSidebarOpen(false)}
+          activeSection={activeSection}
+          onSectionChange={setActiveSection} 
+        />
+        
+        <div className="flex-1 flex flex-col h-full md:ml-64">
+          <Header onToggleSidebar={toggleSidebar} />
+          <main className="flex-1 overflow-hidden">
+            {renderActiveSection()}
+          </main>
+        </div>
       </div>
     </div>
   );
