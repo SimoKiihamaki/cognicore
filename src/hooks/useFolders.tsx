@@ -62,14 +62,14 @@ export function useFolders() {
       
       directChildren.forEach(child => {
         const grandChildren = getAllChildIds(child.id);
-        allChildren.push(...grandChildren.map(childFolder => childFolder.id));
+        allChildren.push(...grandChildren);
       });
       
-      return allChildren.map(childFolder => childFolder.id);
+      return allChildren;
     };
     
     const childIds = getAllChildIds(folderId);
-    const idsToRemove = [folderId, ...childIds];
+    const idsToRemove = [folderId, ...childIds.map(child => child.id)];
     
     setFolders(prev => prev.filter(folder => !idsToRemove.includes(folder.id)));
     setExpandedFolders(prev => prev.filter(id => !idsToRemove.includes(id)));
