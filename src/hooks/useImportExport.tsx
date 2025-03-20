@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { useNotes } from './useNotes';
 import { useFolders } from './useFolders';
@@ -7,8 +8,7 @@ import {
   exportData, 
   downloadExport, 
   importFromFile,
-  mergeImportedData,
-  ExportPackage
+  mergeImportedData
 } from '@/services/importExportService';
 import { Note, Folder, IndexedFile } from '@/lib/types';
 
@@ -55,7 +55,7 @@ export function useImportExport() {
    * Export data as a downloadable file
    */
   const exportItems = useCallback(async (
-    exportData: {
+    exportOptions: {
       includeNotes: boolean;
       includeFolders: boolean;
       includeFiles: boolean; 
@@ -70,21 +70,21 @@ export function useImportExport() {
     
     try {
       // Collect data to export
-      const notesToExport = exportData.includeNotes ? notes : [];
+      const notesToExport = exportOptions.includeNotes ? notes : [];
       
       // If we don't want to include embeddings, create a deep copy without embeddings
-      const processedNotes = exportData.includeEmbeddings 
+      const processedNotes = exportOptions.includeEmbeddings 
         ? notesToExport 
         : notesToExport.map(note => {
             const { embeddings, ...noteWithoutEmbeddings } = note;
             return noteWithoutEmbeddings as Note;
           });
       
-      const foldersToExport = exportData.includeFolders ? folderTree : [];
-      const filesToExport = exportData.includeFiles ? indexedFiles : [];
+      const foldersToExport = exportOptions.includeFolders ? folderTree : [];
+      const filesToExport = exportOptions.includeFiles ? indexedFiles : [];
       
       // Get settings from localStorage
-      const settingsToExport = exportData.includeSettings
+      const settingsToExport = exportOptions.includeSettings
         ? {
             lmStudio: JSON.parse(localStorage.getItem('lm-studio-config') || '{}'),
             appearance: JSON.parse(localStorage.getItem('appearance-settings') || '{}'),
@@ -94,28 +94,28 @@ export function useImportExport() {
       
       // Create additional metadata
       const metadata = {
-        description: exportData.description,
+        description: exportOptions.description,
         creator: 'CogniCore User',
         appVersion: '1.0.0' // This should be fetched from an app constants file
       };
       
       // Generate export file based on format
-      const exportFormat = exportData.format;
+      const exportFormat = exportOptions.format;
       let blobUrl;
       let filename = `cognicore-export-${new Date().toISOString().replace(/[:.]/g, '-')}`;
       
       if (exportFormat === 'json') {
         // Use the import/export service to create a JSON export
-        const blobUrl = exportData(processedNotes, filesToExport, foldersToExport, settingsToExport, metadata);
+        blobUrl = exportData(processedNotes, filesToExport, foldersToExport, settingsToExport, metadata);
         filename += '.json';
       } else if (exportFormat === 'markdown') {
         // For markdown export, a different approach would be needed
         // This is a simplified version for now
         
-        if (exportData.splitFiles) {
+        if (exportOptions.splitFiles) {
           // This would generate a zip file with individual markdown files
           // For simplicity, we're just using JSON for now
-          const blobUrl = exportData(processedNotes, [], [], {}, metadata);
+          blobUrl = exportData(processedNotes, [], [], {}, metadata);
           filename += '-markdown.zip';
         } else {
           // Single markdown file with all notes
@@ -143,7 +143,9 @@ export function useImportExport() {
       }
       
       // Trigger download
-      downloadExport(blobUrl, filename);
+      if (blobUrl) {
+        downloadExport(blobUrl, filename);
+      }
       
       toast({
         title: "Export Successful",
@@ -189,7 +191,7 @@ export function useImportExport() {
       setImportProgress(10);
       
       // Import and parse the file
-      const importedData = await importFromFile(file, options);
+      const importedData = await importFromFile(file);
       setImportProgress(40);
       
       // Merge imported data with existing data
@@ -198,13 +200,7 @@ export function useImportExport() {
         notes,
         indexedFiles,
         folderTree as Folder[],
-        {
-          importNotes: options.importNotes,
-          importFolders: options.importFolders,
-          importFiles: options.importFiles,
-          importSettings: options.importSettings,
-          overwriteExisting: options.overwriteExisting
-        }
+        options
       );
       
       setImportProgress(70);
@@ -216,10 +212,7 @@ export function useImportExport() {
         for (const folder of mergeResult.folders) {
           const existingFolder = folderTree.find(f => f.id === folder.id);
           
-          if (existingFolder) {
-            // Update existing folder
-            // updateFolder(folder.id, folder); // This function does not exist
-          } else {
+          if (!existingFolder) {
             // Add new folder
             addFolder(folder);
           }

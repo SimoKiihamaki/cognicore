@@ -35,9 +35,6 @@ const App = () => {
     // Initialize cache service
     cacheService.initialize(cacheSize);
     
-    // Get model name from localStorage or use default
-    const modelName = localStorage.getItem('cognicore-embedding-model') || 'Xenova/all-MiniLM-L6-v2';
-    
     // Initialize embedding service
     try {
       initializeEmbeddingService();

@@ -1,143 +1,118 @@
-import { useEffect, useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useOfflineStatus } from '@/hooks/useOfflineStatus';
-import { Wifi, WifiOff, Download, RefreshCw } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  AlertCircle,
+  CheckCircle2,
+  Wifi,
+  WifiOff
+} from 'lucide-react';
 
 interface OfflineIndicatorProps {
-  className?: string;
+  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  showOfflineMessage?: boolean;
 }
 
-/**
- * Component to display offline status and provide controls for offline mode
- */
-const OfflineIndicator = ({ className = '' }: OfflineIndicatorProps) => {
-  const { 
-    isOnline, 
-    isServiceWorkerActive, 
-    isOfflineModeEnabled,
-    hasAppUpdate,
-    updateServiceWorker,
-    enableOfflineMode
-  } = useOfflineStatus();
-  const { toast } = useToast();
-  const [showTooltip, setShowTooltip] = useState(false);
+const OfflineIndicator: React.FC<OfflineIndicatorProps> = ({
+  position = 'top-right',
+  showOfflineMessage = true
+}) => {
+  // Use the hook for offline status
+  const { isOffline, isOfflineMode, toggleOfflineMode } = useOfflineStatus();
+  const [showDetails, setShowDetails] = useState(false);
+  const [hasCachedData, setHasCachedData] = useState(true); // Just a placeholder, would come from a real check
 
-  // Show toast when online/offline status changes
+  // Position class mapping
+  const positionClasses = {
+    'top-left': 'top-2 left-2',
+    'top-right': 'top-2 right-2',
+    'bottom-left': 'bottom-2 left-2',
+    'bottom-right': 'bottom-2 right-2'
+  };
+
+  // Update document title when offline
   useEffect(() => {
-    if (isOnline) {
-      toast({
-        title: 'Online',
-        description: 'You are now connected to the internet.',
-        variant: 'default'
-      });
+    if (isOffline) {
+      document.title = '📴 Offline - CogniCore';
     } else {
-      toast({
-        title: 'Offline',
-        description: 'You are now offline. Some features may be limited.',
-        variant: 'destructive'
-      });
+      document.title = 'CogniCore';
     }
-  }, [isOnline, toast]);
+  }, [isOffline]);
 
-  // Toggle offline mode
-  const handleOfflineModeToggle = (enabled: boolean) => {
-    enableOfflineMode(enabled);
-    
-    toast({
-      title: enabled ? 'Offline Mode Enabled' : 'Offline Mode Disabled',
-      description: enabled 
-        ? 'App will work offline with reduced functionality.'
-        : 'App will use online features when available.',
-      variant: 'default'
-    });
-  };
-
-  // Handle update service worker
-  const handleUpdate = () => {
-    updateServiceWorker();
-    
-    toast({
-      title: 'Updating',
-      description: 'Installing new version. Page will reload shortly.',
-      variant: 'default'
-    });
-  };
+  // Only show when offline or in offline mode
+  if (!isOffline && !isOfflineMode) return null;
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      {/* Offline status indicator */}
-      <TooltipProvider>
-        <Tooltip open={showTooltip} onOpenChange={setShowTooltip}>
-          <TooltipTrigger asChild>
-            <div 
-              className={`p-1.5 rounded-full ${isOnline ? 'bg-green-500/20' : 'bg-destructive/20'}`}
-              onMouseEnter={() => setShowTooltip(true)}
-              onMouseLeave={() => setShowTooltip(false)}
-            >
-              {isOnline ? (
-                <Wifi className="h-4 w-4 text-green-500" />
-              ) : (
-                <WifiOff className="h-4 w-4 text-destructive" />
-              )}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <div className="space-y-2 p-1">
-              <p className="text-sm font-medium">
-                {isOnline ? 'Online' : 'Offline'}
+    <div className={`fixed ${positionClasses[position]} z-50`}>
+      {/* Main indicator */}
+      <div
+        className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm shadow-md cursor-pointer transition-all duration-200 ${
+          isOffline
+            ? 'bg-destructive/10 text-destructive border border-destructive/20'
+            : isOfflineMode
+            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+            : 'bg-transparent border border-transparent'
+        }`}
+        onClick={() => setShowDetails(!showDetails)}
+      >
+        {isOffline ? (
+          <WifiOff className="h-4 w-4" />
+        ) : (
+          <Wifi className="h-4 w-4" />
+        )}
+        <span className="font-medium">
+          {isOffline ? 'Offline' : 'Offline Mode'}
+        </span>
+      </div>
+
+      {/* Details panel */}
+      {showDetails && (
+        <div className="mt-2 rounded-md shadow-lg border border-border bg-background p-4 w-64">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-semibold">Connection Status</h3>
+            {isOffline ? (
+              <AlertCircle className="h-5 w-5 text-destructive" />
+            ) : (
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+            )}
+          </div>
+
+          {/* Status indicator */}
+          <div className="mb-4 p-2 rounded-md bg-muted">
+            <p className="text-sm">
+              {isOffline
+                ? 'You are currently offline. Limited functionality is available.'
+                : 'You are connected to the network, but working in offline mode.'}
+            </p>
+          </div>
+
+          {/* Offline mode toggle */}
+          <div className="flex justify-between items-center mb-3">
+            <div>
+              <p className="font-medium text-sm">Offline Mode</p>
+              <p className="text-xs text-muted-foreground">
+                Work locally without network
               </p>
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="offline-mode" className="text-xs cursor-pointer">
-                  Offline Mode
-                </Label>
-                <Switch
-                  id="offline-mode"
-                  checked={isOfflineModeEnabled}
-                  onCheckedChange={handleOfflineModeToggle}
-                  className="scale-90"
-                />
-              </div>
-              {!isServiceWorkerActive && isOnline && (
-                <p className="text-xs text-amber-500">
-                  Service Worker not active. Offline support limited.
-                </p>
-              )}
-              {hasAppUpdate && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full mt-1 h-7 text-xs"
-                  onClick={handleUpdate}
-                >
-                  <RefreshCw className="h-3 w-3 mr-1" />
-                  Update App
-                </Button>
-              )}
             </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      
-      {/* Update indicator */}
-      {hasAppUpdate && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1 bg-primary/20 hover:bg-primary/30 border-primary/40"
-          onClick={handleUpdate}
-        >
-          <Download className="h-3.5 w-3.5" />
-          <span className="text-xs">Update</span>
-        </Button>
+            <Switch
+              id="offline-mode"
+              checked={isOfflineMode}
+              onCheckedChange={toggleOfflineMode}
+              className="scale-90"
+            />
+          </div>
+
+          {/* Cached data status */}
+          <div className="text-xs text-muted-foreground mt-3 flex items-center">
+            <span className={`w-2 h-2 rounded-full mr-2 ${
+              hasCachedData ? 'bg-green-500' : 'bg-amber-500'
+            }`}></span>
+            {hasCachedData
+              ? 'Local data available for offline use'
+              : 'Limited data available offline'}
+          </div>
+        </div>
       )}
     </div>
   );
