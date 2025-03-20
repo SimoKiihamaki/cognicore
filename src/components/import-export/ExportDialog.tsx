@@ -30,7 +30,7 @@ const ExportDialog = ({ open, onOpenChange }: ExportDialogProps) => {
   const { toast } = useToast();
   const { notes } = useNotes();
   const { folderTree } = useFolders();
-  const { isExporting } = useImportExport();
+  const { exportItems, isExporting } = useImportExport();
   
   const [activeTab, setActiveTab] = useState<string>('json-export');
   const [exportOptions, setExportOptions] = useState({
@@ -44,7 +44,6 @@ const ExportDialog = ({ open, onOpenChange }: ExportDialogProps) => {
     fileFormat: 'json' as 'json' | 'markdown' | 'csv'
   });
   
-  // Handle export options change
   const handleCheckboxChange = useCallback((option: string, checked: boolean) => {
     setExportOptions(prev => ({
       ...prev,
@@ -52,7 +51,6 @@ const ExportDialog = ({ open, onOpenChange }: ExportDialogProps) => {
     }));
   }, []);
   
-  // Handle text input change
   const handleTextChange = useCallback((option: string, value: string) => {
     setExportOptions(prev => ({
       ...prev,
@@ -60,7 +58,6 @@ const ExportDialog = ({ open, onOpenChange }: ExportDialogProps) => {
     }));
   }, []);
   
-  // Handle radio button change
   const handleRadioChange = useCallback((value: string) => {
     setExportOptions(prev => ({
       ...prev,
@@ -68,7 +65,6 @@ const ExportDialog = ({ open, onOpenChange }: ExportDialogProps) => {
     }));
   }, []);
   
-  // Start export process
   const startExport = useCallback(async () => {
     if (!exportOptions.includeNotes && !exportOptions.includeFolders && 
         !exportOptions.includeFiles && !exportOptions.includeSettings) {
@@ -81,63 +77,24 @@ const ExportDialog = ({ open, onOpenChange }: ExportDialogProps) => {
     }
     
     try {
-      // Collect data to export
-      const notesToExport = exportOptions.includeNotes ? notes : [];
-      
-      // This would be collected from the respective hooks
-      const foldersToExport = exportOptions.includeFolders ? folderTree : [];
-      
-      // Indexed files would come from a hook like useFileMonitor
-      const filesToExport = exportOptions.includeFiles ? [] : [];
-      
-      // Settings would be collected from localStorage
-      const settingsToExport = exportOptions.includeSettings ? {
-        // example settings data
-        appearance: JSON.parse(localStorage.getItem('appearance-settings') || '{}'),
-        lmStudio: JSON.parse(localStorage.getItem('lm-studio-config') || '{}'),
-        folders: JSON.parse(localStorage.getItem('cognicore-monitored-folders') || '[]')
-      } : {};
-      
-      // Additional metadata
-      const metadata = {
+      const result = await exportItems({
+        includeNotes: exportOptions.includeNotes,
+        includeFolders: exportOptions.includeFolders,
+        includeFiles: exportOptions.includeFiles,
+        includeSettings: exportOptions.includeSettings,
+        includeEmbeddings: exportOptions.includeEmbeddings,
         description: exportOptions.exportDescription || undefined,
-        creator: 'CogniCore User',
-        appVersion: '1.0.0' // This could come from an app constants file
-      };
-      
-      // Create export package
-      const blobUrl = exportData(
-        notesToExport,
-        filesToExport,
-        foldersToExport,
-        settingsToExport,
-        metadata
-      );
-      
-      // Generate filename
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      let filename = `cognicore-export-${timestamp}`;
-      
-      // Add file extension based on format
-      if (exportOptions.fileFormat === 'json') {
-        filename += '.json';
-      } else if (exportOptions.fileFormat === 'markdown') {
-        filename += exportOptions.splitFiles ? '.zip' : '.md';
-      } else if (exportOptions.fileFormat === 'csv') {
-        filename += '.csv';
-      }
-      
-      // Trigger download
-      downloadExport(blobUrl, filename);
-      
-      // Show success toast
-      toast({
-        title: "Export Successful",
-        description: `Your data has been exported successfully.`,
+        format: exportOptions.fileFormat,
+        splitFiles: exportOptions.splitFiles
       });
       
-      // Close dialog
-      onOpenChange(false);
+      if (result) {
+        toast({
+          title: "Export Successful",
+          description: `Your data has been exported successfully.`,
+        });
+        onOpenChange(false);
+      }
     } catch (error) {
       console.error('Export failed:', error);
       toast({
@@ -148,8 +105,7 @@ const ExportDialog = ({ open, onOpenChange }: ExportDialogProps) => {
     }
   }, [
     exportOptions, 
-    notes, 
-    folderTree, 
+    exportItems,
     toast, 
     onOpenChange
   ]);
@@ -394,7 +350,6 @@ const ExportDialog = ({ open, onOpenChange }: ExportDialogProps) => {
           </TabsContent>
         </Tabs>
         
-        {/* Export summary */}
         <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground mt-4">
           <div className="flex items-center">
             <Database className="h-3 w-3 mr-1" />
