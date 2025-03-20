@@ -36,12 +36,12 @@ export async function suggestOrganization(
       
       if (titleLower.includes(folderNameLower)) {
         score += 0.5;
-        reason = `Folder name "${folder.name}" appears in ${item.folderId ? 'note' : 'file'} title`;
+        reason = `Folder name "${folder.name}" appears in item title`;
       }
       
       if (contentLower.includes(folderNameLower)) {
         score += 0.3;
-        reason += reason ? " and content" : `Folder name "${folder.name}" appears in ${item.folderId ? 'note' : 'file'} content`;
+        reason += reason ? " and content" : `Folder name "${folder.name}" appears in item content`;
       }
       
       const textSimilarity = calculateSimilarity(folder.name, item.content);
@@ -58,7 +58,7 @@ export async function suggestOrganization(
     if (bestMatch && bestMatch.score >= similarityThreshold) {
       suggestions.push({
         itemId: item.id,
-        itemType: item.folderId !== undefined ? 'note' : 'file',
+        itemType: item.folderId !== undefined ? 'note' as ContentItemType : 'file' as ContentItemType,
         suggestedFolderId: bestMatch.folderId,
         confidence: bestMatch.score,
         reason: bestMatch.reason

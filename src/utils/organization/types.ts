@@ -1,3 +1,4 @@
+
 import { Note, Folder, IndexedFile, ContentItemType } from '@/lib/types';
 
 export interface ContentItem {
@@ -11,7 +12,7 @@ export interface ContentItem {
 
 export interface OrganizationSuggestion {
   itemId: string;
-  itemType: 'note' | 'file';
+  itemType: ContentItemType;
   suggestedFolderId: string;
   confidence: number;
   reason: string;
