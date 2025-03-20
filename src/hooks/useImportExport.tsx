@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { useNotes } from './useNotes';
 import { useFolders } from './useFolders';
@@ -287,7 +288,7 @@ export function useImportExport() {
   /**
    * Quick export all data as JSON
    */
-  const quickExportAll = useCallback(async (includeEmbeddings: boolean = false) => {
+  const quickExportAll = useCallback(async (includeEmbeddings: boolean = false, description: string = 'Quick export of all data') => {
     return exportItems({
       includeNotes: true,
       includeFolders: true,
@@ -295,14 +296,14 @@ export function useImportExport() {
       includeSettings: true,
       includeEmbeddings,
       format: 'json',
-      description: 'Quick export of all data'
+      description
     });
   }, [exportItems]);
   
   /**
    * Export notes as Markdown
    */
-  const exportNotesAsMarkdown = useCallback(async (splitFiles: boolean = false) => {
+  const exportNotesAsMarkdown = useCallback(async (splitFiles: boolean = false, description: string = 'Notes exported as Markdown') => {
     return exportItems({
       includeNotes: true,
       includeFolders: false,
@@ -311,7 +312,7 @@ export function useImportExport() {
       includeEmbeddings: false,
       format: 'markdown',
       splitFiles,
-      description: 'Notes exported as Markdown'
+      description
     });
   }, [exportItems]);
   
