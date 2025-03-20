@@ -1,125 +1,113 @@
+
 import { Note, IndexedFile, ContentItemType } from '@/lib/types';
-import { toContentItem, calculateSimilarity } from './contentUtils';
-import { SimilarityResult } from './types';
-import { getTextEmbeddings, calculateCosineSimilarity } from '@/utils/embeddings';
+import { ContentItem } from './types';
+import { cosineSimilarity } from '@/utils/embeddings';
+import { toContentItem } from './contentUtils';
 
 /**
- * Find content items similar to a target item
- * Uses embedding-based similarity when available, falls back to text-based
+ * Finds content items similar to the provided item.
+ * 
+ * @param itemId ID of the item to find similar content for
+ * @param allItems All available content items
+ * @param threshold Similarity threshold (0-1)
+ * @param maxResults Maximum number of results to return
+ * @returns Array of similar items with similarity scores
  */
 export function findSimilarContent(
   itemId: string,
   allItems: (Note | IndexedFile)[],
-  similarityThreshold: number = 0.3
-): SimilarityResult[] {
-  const targetItem = allItems.find(item => 'id' in item && item.id === itemId);
-  if (!targetItem) return [];
+  threshold: number = 0.3,
+  maxResults?: number
+) {
+  // Find the source item
+  const sourceItem = allItems.find(item => item.id === itemId);
+  if (!sourceItem || !sourceItem.embeddings || sourceItem.embeddings.length === 0) {
+    return [];
+  }
   
-  const targetContent = toContentItem(targetItem);
+  // Convert items to a common format for processing
+  const targetItems = allItems
+    .filter(item => item.id !== itemId && item.embeddings && item.embeddings.length > 0)
+    .map(toContentItem);
   
-  const similarities = allItems
-    .filter(item => 'id' in item && item.id !== itemId)
-    .map(item => {
-      const contentItem = toContentItem(item);
-      const similarity = calculateSimilarity(targetContent, contentItem);
+  // Calculate similarity for each item
+  const similarities = targetItems.map(item => {
+    if (!item.embeddings || item.embeddings.length === 0) {
+      return { id: item.id, type: getItemType(item), similarity: 0 };
+    }
+    
+    // Calculate embedding similarity
+    const similarity = cosineSimilarity(sourceItem.embeddings!, item.embeddings);
+    
+    // Calculate text similarity
+    let textSimilarity = 0;
+    if (sourceItem.content && item.content) {
+      const sourceText = getItemText(sourceItem).toLowerCase();
+      const targetText = item.content.toLowerCase();
       
-      return {
-        id: contentItem.id,
-        type: ('folderId' in item ? 'note' : 'file') as ContentItemType,
-        similarity,
-        title: contentItem.title
-      };
-    })
-    .filter(result => result.similarity >= similarityThreshold)
+      // Simple text similarity heuristic
+      if (sourceText && targetText) {
+        // Check for direct inclusion of title
+        if (item.title && sourceText.includes(item.title.toLowerCase())) {
+          textSimilarity += 0.2;
+        }
+        
+        // Check for presence of key terms (could be expanded)
+        const sourceParts = sourceText.split(/\s+/).filter(part => part.length > 5);
+        const targetParts = targetText.split(/\s+/).filter(part => part.length > 5);
+        
+        // Count overlap of significant words
+        const overlap = sourceParts.filter(part => targetParts.includes(part)).length;
+        if (overlap > 0) {
+          textSimilarity += Math.min(0.3, overlap * 0.05);
+        }
+      }
+    }
+    
+    // Combine similarities with embedding similarity given more weight
+    const combinedSimilarity = similarity * 0.8 + textSimilarity * 0.2;
+    
+    return {
+      id: item.id,
+      type: getItemType(item),
+      similarity: combinedSimilarity
+    };
+  });
+  
+  // Filter by threshold and sort by similarity
+  const result = similarities
+    .filter(item => item.similarity >= threshold)
     .sort((a, b) => b.similarity - a.similarity);
   
-  return similarities;
+  // Limit results if requested
+  return maxResults ? result.slice(0, maxResults) : result;
 }
 
 /**
- * Find similar content using embeddings
- * More accurate than text-based similarity but requires pre-computed embeddings
+ * Determines the type of a content item
  */
-export function findSimilarByEmbeddings(
-  targetEmbeddings: number[],
-  allItems: (Note | IndexedFile)[],
-  similarityThreshold: number = 0.3
-): SimilarityResult[] {
-  if (!targetEmbeddings || targetEmbeddings.length === 0) {
-    return [];
+function getItemType(item: ContentItem | Note | IndexedFile): ContentItemType {
+  // Check if it's a Note (has content property)
+  if ('content' in item && 'title' in item) {
+    return 'note';
   }
-  
-  return allItems
-    .filter(item => item.embeddings && item.embeddings.length > 0)
-    .map(item => {
-      const similarity = calculateCosineSimilarity(targetEmbeddings, item.embeddings!);
-      
-      return {
-        id: item.id,
-        type: ('folderId' in item ? 'note' : 'file') as ContentItemType,
-        similarity,
-        title: 'title' in item ? item.title : item.filename
-      };
-    })
-    .filter(result => result.similarity >= similarityThreshold)
-    .sort((a, b) => b.similarity - a.similarity);
+  // Check if it's an IndexedFile (has filename property)
+  if ('filename' in item) {
+    return 'file';
+  }
+  // Fallback
+  return 'note';
 }
 
 /**
- * Get embeddings for a content item if not already computed
+ * Gets text representation of an item for text similarity comparison
  */
-export async function ensureItemEmbeddings(
-  item: Note | IndexedFile,
-  modelName: string = 'Xenova/all-MiniLM-L6-v2'
-): Promise<number[]> {
-  // If item already has embeddings, return them
-  if (item.embeddings && item.embeddings.length > 0) {
-    return item.embeddings;
+function getItemText(item: Note | IndexedFile): string {
+  if ('content' in item && item.content) {
+    return item.title ? `${item.title} ${item.content}` : item.content;
   }
-  
-  // Extract text to embed based on item type
-  const textToEmbed = 'content' in item && item.content 
-    ? `${item.title || ''}\n${item.content}` 
-    : 'filename' in item 
-      ? item.filename 
-      : '';
-  
-  // Skip empty items
-  if (!textToEmbed.trim()) {
-    return [];
+  if ('filename' in item) {
+    return item.filename || '';
   }
-  
-  // Generate embeddings
-  try {
-    return await getTextEmbeddings(textToEmbed, modelName);
-  } catch (error) {
-    console.error(`Failed to generate embeddings for item ${item.id}:`, error);
-    return [];
-  }
-}
-
-/**
- * Process a batch of items to ensure they all have embeddings
- */
-export async function batchEnsureEmbeddings(
-  items: (Note | IndexedFile)[],
-  modelName: string = 'Xenova/all-MiniLM-L6-v2'
-): Promise<Map<string, number[]>> {
-  const itemsNeedingEmbeddings = items.filter(item => !item.embeddings || item.embeddings.length === 0);
-  const results = new Map<string, number[]>();
-  
-  // Process in smaller batches to avoid memory issues
-  const batchSize = 5;
-  for (let i = 0; i < itemsNeedingEmbeddings.length; i += batchSize) {
-    const batch = itemsNeedingEmbeddings.slice(i, i + batchSize);
-    const batchPromises = batch.map(item => ensureItemEmbeddings(item, modelName));
-    
-    const batchResults = await Promise.all(batchPromises);
-    
-    batch.forEach((item, index) => {
-      results.set(item.id, batchResults[index]);
-    });
-  }
-  
-  return results;
+  return '';
 }

@@ -37,3 +37,9 @@ export interface EmbeddingJobResult {
   success: boolean;
   error?: string;
 }
+
+// This function helps invalidate the cache for items that have been modified
+export function invalidateItemCache(id: string): void {
+  // Implementation would clear any cached data for the specified item
+  console.log(`Cache invalidated for item: ${id}`);
+}

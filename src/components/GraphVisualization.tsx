@@ -110,7 +110,7 @@ const GraphVisualization = () => {
           item.id, 
           allItems, 
           similarityThreshold,
-          isLargeDataset ? maxConnectionsPerNode : undefined
+          maxConnectionsPerNode
         );
         
         // Limit the number of connections for large datasets
@@ -293,7 +293,7 @@ const GraphVisualization = () => {
       toast({
         title: "Large Graph Detected",
         description: `${nodeCount} nodes may impact performance. Consider increasing the similarity threshold.`,
-        variant: "warning"
+        variant: "destructive"
       });
     }
     
