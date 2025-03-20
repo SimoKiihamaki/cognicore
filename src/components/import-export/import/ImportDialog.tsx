@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import { useImportExport, ImportResult } from '@/hooks/useImportExport';
+import { useImportExport, ImportResult } from '@/hooks/import-export/useImportExport';
 import { useToast } from '@/components/ui/use-toast';
 import {
   Dialog,
