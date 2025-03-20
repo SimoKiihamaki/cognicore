@@ -37,7 +37,9 @@ const App = () => {
     
     // Initialize embedding service
     try {
+      // Call without model name parameter to avoid the error
       initializeEmbeddingService();
+      console.log('Embedding service initialized');
     } catch (error) {
       console.error('Failed to initialize embedding service:', error);
     }
