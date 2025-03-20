@@ -1,22 +1,11 @@
 
 import { FileQuestion, FilePlus, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ImportFileValidation } from './types';
 
 interface ImportFileInfoProps {
   files: File[];
-  importFileValidation: {
-    isValidating: boolean;
-    isValid: boolean | null;
-    error: string | null;
-    packageInfo: {
-      noteCount: number;
-      folderCount: number;
-      fileCount: number;
-      hasSettings: boolean;
-      timestamp: string;
-      description?: string;
-    } | null;
-  };
+  importFileValidation: ImportFileValidation;
 }
 
 const ImportFileInfo = ({ files, importFileValidation }: ImportFileInfoProps) => {

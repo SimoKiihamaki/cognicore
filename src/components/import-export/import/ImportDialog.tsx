@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import { useImportExport, ImportResult } from '@/hooks/import-export/useImportExport';
+import { useImportExport } from '@/hooks/import-export/useImportExport';
 import { useToast } from '@/components/ui/use-toast';
 import {
   Dialog,
@@ -19,6 +19,7 @@ import { ImportFileUpload } from './';
 import { ImportFileInfo } from './';
 import { ImportOptions } from './';
 import { ImportProgress } from './';
+import { ImportFileValidation, ImportDialogState } from './types';
 
 interface ImportDialogProps {
   open: boolean;
@@ -31,7 +32,7 @@ const ImportDialog = ({ open, onOpenChange }: ImportDialogProps) => {
   
   const [activeTab, setActiveTab] = useState<string>('file-import');
   const [files, setFiles] = useState<File[]>([]);
-  const [importOptions, setImportOptions] = useState({
+  const [importOptions, setImportOptions] = useState<ImportDialogState['importOptions']>({
     importNotes: true,
     importFolders: true,
     importFiles: true,
@@ -39,19 +40,7 @@ const ImportDialog = ({ open, onOpenChange }: ImportDialogProps) => {
     overwriteExisting: false,
   });
   const [dragActive, setDragActive] = useState(false);
-  const [importFileValidation, setImportFileValidation] = useState<{
-    isValidating: boolean;
-    isValid: boolean | null;
-    error: string | null;
-    packageInfo: {
-      noteCount: number;
-      folderCount: number;
-      fileCount: number;
-      hasSettings: boolean;
-      timestamp: string;
-      description?: string;
-    } | null;
-  }>({
+  const [importFileValidation, setImportFileValidation] = useState<ImportFileValidation>({
     isValidating: false,
     isValid: null,
     error: null,
@@ -172,7 +161,9 @@ const ImportDialog = ({ open, onOpenChange }: ImportDialogProps) => {
     }
     
     try {
-      await importItems(files, {
+      // Only pass the first file for now - in a real implementation we could handle multiple files
+      const firstFile = files[0];
+      await importItems(firstFile, {
         importNotes: importOptions.importNotes,
         importFolders: importOptions.importFolders,
         importFiles: importOptions.importFiles,

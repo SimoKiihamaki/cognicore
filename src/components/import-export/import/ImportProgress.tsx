@@ -2,7 +2,7 @@
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle2, AlertCircle } from 'lucide-react';
-import { ImportResult } from '@/hooks/useImportExport';
+import { ImportResult } from '@/hooks/import-export/types';
 
 interface ImportProgressProps {
   isImporting: boolean;

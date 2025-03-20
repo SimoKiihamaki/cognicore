@@ -1,15 +1,10 @@
 
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { ImportDialogState } from './types';
 
 interface ImportOptionsProps {
-  importOptions: {
-    importNotes: boolean;
-    importFolders: boolean;
-    importFiles: boolean;
-    importSettings: boolean;
-    overwriteExisting: boolean;
-  };
+  importOptions: ImportDialogState['importOptions'];
   handleOptionChange: (option: string, value: boolean) => void;
 }
 
