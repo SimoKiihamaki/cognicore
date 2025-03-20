@@ -8,6 +8,21 @@ import { IndexedFile } from '@/lib/types';
 import { extractTextFromFile } from '@/utils/fileUtils';
 import { debounce } from '@/utils/debounce';
 
+// Define common text file extensions to monitor
+export const TEXT_FILE_EXTENSIONS = [
+  'txt', 'md', 'markdown', 'html', 'htm', 'json', 'csv',
+  'js', 'ts', 'jsx', 'tsx', 'css', 'scss', 'xml',
+  'yaml', 'yml', 'toml', 'ini', 'env', 'gitignore',
+  'config', 'log'
+];
+
+// Define directories that are typically excluded from monitoring
+export const EXCLUDED_DIRECTORIES = [
+  'node_modules', '.git', 'dist', 'build', 'coverage',
+  '.next', '.nuxt', '.output', '.cache', '.vscode',
+  'vendor', 'tmp', 'temp', 'logs', '.DS_Store'
+];
+
 // Define types for the file monitoring system
 export interface MonitoredFolder {
   id: string;
@@ -27,6 +42,14 @@ export interface MonitoringStats {
   };
 }
 
+export interface MonitoringStatus {
+  folderPath: string;
+  lastScanTime: Date | null;
+  fileCount: number;
+  errorCount: number;
+  lastError: string | null;
+}
+
 // Request permission to access a directory
 export async function requestDirectoryAccess(): Promise<FileSystemDirectoryHandle | null> {
   try {
@@ -36,6 +59,86 @@ export async function requestDirectoryAccess(): Promise<FileSystemDirectoryHandl
     console.error('Error accessing directory:', error);
     return null;
   }
+}
+
+// File system access support check
+export function isFileAccessSupported(): boolean {
+  return 'showDirectoryPicker' in window;
+}
+
+// Request access to a specific folder
+export async function requestFolderAccess(): Promise<FileSystemDirectoryHandle | null> {
+  return requestDirectoryAccess();
+}
+
+// Add a folder to be monitored
+export function addMonitoredFolder(path: string, handle: FileSystemDirectoryHandle) {
+  const monitor = getFileMonitor();
+  return monitor.addFolder(path, handle);
+}
+
+// Start monitoring a folder
+export function startMonitoringFolder(
+  path: string,
+  callback: (files: IndexedFile[], eventType: 'initial' | 'changed' | 'deleted') => void,
+  options?: {
+    intervalMs?: number,
+    scanOptions?: {
+      maxFileSize?: number,
+      textFilesOnly?: boolean,
+      skipExcludedDirs?: boolean,
+      includeAllFileTypes?: boolean
+    },
+    errorCallback?: (error: Error) => void
+  }
+) {
+  const monitor = getFileMonitor();
+  // Implementation would go here
+  // For now, just do a basic scan
+  monitor.scanFolder(monitor.folders.find(f => f.path === path)!);
+}
+
+// Stop monitoring a folder
+export function stopMonitoringFolder(path: string) {
+  // Implementation would go here
+}
+
+// Remove a monitored folder
+export function removeMonitoredFolder(path: string) {
+  const monitor = getFileMonitor();
+  const folder = monitor.folders.find(f => f.path === path);
+  if (folder) {
+    monitor.removeFolder(folder.id);
+  }
+}
+
+// Get monitoring status for all folders
+export function getMonitoringStatus(): MonitoringStatus[] {
+  const monitor = getFileMonitor();
+  return monitor.folders.map(folder => ({
+    folderPath: folder.path,
+    lastScanTime: monitor.stats.lastScanTime,
+    fileCount: monitor.indexedFiles.filter(f => f.filepath.startsWith(folder.path)).length,
+    errorCount: 0,
+    lastError: null
+  }));
+}
+
+// Scan a directory and return indexed files
+export async function scanDirectory(
+  handle: FileSystemDirectoryHandle,
+  basePath: string
+): Promise<IndexedFile[]> {
+  const monitor = getFileMonitor();
+  const folder: MonitoredFolder = {
+    id: uuidv4(),
+    path: basePath,
+    handle,
+    isActive: true
+  };
+  
+  await monitor.scanFolder(folder);
+  return monitor.indexedFiles.filter(f => f.filepath.startsWith(basePath));
 }
 
 // Class to manage file monitoring

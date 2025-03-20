@@ -51,13 +51,13 @@ export function useFileMonitor() {
   const { processAllContent } = useEmbeddings();
   
   // Check if file system access is supported
-  const isSupported = fileMonitor.isFileAccessSupported();
+  const isSupported = fileMonitor.isFileAccessSupported?.() || false;
   
   // Update folder stats from the monitoring service
   const updateFolderStats = useCallback(() => {
     if (!isMonitoring) return;
     
-    const statuses = fileMonitor.getMonitoringStatus() as fileMonitor.MonitoringStatus[];
+    const statuses = (fileMonitor.getMonitoringStatus?.() || []) as fileMonitor.MonitoringStatus[];
     
     // Merge status data with folder data
     const updatedStats = monitoredFolders.map(folder => {
@@ -209,7 +209,7 @@ export function useFileMonitor() {
   // Stop monitoring all folders
   const stopMonitoring = useCallback(() => {
     monitoredFolders.forEach(folder => {
-      fileMonitor.stopMonitoringFolder(folder.path);
+      fileMonitor.stopMonitoringFolder?.(folder.path);
     });
     
     setIsMonitoring(false);
@@ -338,7 +338,7 @@ export function useFileMonitor() {
     
     // Stop monitoring if active
     if (isMonitoring && folder.isActive) {
-      fileMonitor.stopMonitoringFolder(folder.path);
+      fileMonitor.stopMonitoringFolder?.(folder.path);
       fileMonitor.removeMonitoredFolder(folder.path);
     }
     
@@ -367,7 +367,7 @@ export function useFileMonitor() {
       if (isMonitoring) {
         if (folder.isActive && !updatedFolder.isActive) {
           // Folder was active and is now inactive, stop monitoring
-          fileMonitor.stopMonitoringFolder(folder.path);
+          fileMonitor.stopMonitoringFolder?.(folder.path);
           fileMonitor.removeMonitoredFolder(folder.path);
         } else if (!folder.isActive && updatedFolder.isActive) {
           // Folder was inactive and is now active, start monitoring
@@ -507,7 +507,7 @@ export function useFileMonitor() {
       if (isMonitoring) {
         monitoredFolders.forEach(folder => {
           if (folder.isActive) {
-            fileMonitor.stopMonitoringFolder(folder.path);
+            fileMonitor.stopMonitoringFolder?.(folder.path);
           }
         });
       }

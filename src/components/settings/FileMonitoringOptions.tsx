@@ -93,6 +93,16 @@ const FileMonitoringOptions = () => {
     updateMonitoringOptions({ maxFileSize: maxSize });
   };
   
+  // Use the actual constants from fileMonitor or fallback to default arrays
+  const textExtensions = TEXT_FILE_EXTENSIONS || [
+    'txt', 'md', 'markdown', 'html', 'htm', 'json', 'csv',
+    'js', 'ts', 'jsx', 'tsx', 'css', 'scss'
+  ];
+  
+  const excludedDirs = EXCLUDED_DIRECTORIES || [
+    'node_modules', '.git', 'dist', 'build', 'coverage' 
+  ];
+  
   return (
     <Collapsible
       open={isOpen}
@@ -228,7 +238,7 @@ const FileMonitoringOptions = () => {
                   <div className="text-sm font-medium">Text File Extensions</div>
                   <ScrollArea className="h-20 rounded-md border p-2">
                     <div className="flex flex-wrap gap-1">
-                      {TEXT_FILE_EXTENSIONS.map((ext) => (
+                      {textExtensions.map((ext) => (
                         <div 
                           key={ext} 
                           className="px-1.5 py-0.5 bg-muted rounded text-xs"
@@ -244,7 +254,7 @@ const FileMonitoringOptions = () => {
                   <div className="text-sm font-medium">Excluded Directories</div>
                   <ScrollArea className="h-20 rounded-md border p-2">
                     <div className="flex flex-wrap gap-1">
-                      {EXCLUDED_DIRECTORIES.map((dir) => (
+                      {excludedDirs.map((dir) => (
                         <div 
                           key={dir} 
                           className="px-1.5 py-0.5 bg-muted/70 rounded text-xs"
