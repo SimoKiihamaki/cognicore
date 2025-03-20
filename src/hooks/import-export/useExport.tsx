@@ -7,7 +7,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { 
   exportData, 
   downloadExport 
-} from '@/services/importExportService';
+} from '@/services/import-export/exportService';
 import { ExportOptions } from './types';
 import { Note } from '@/lib/types';
 

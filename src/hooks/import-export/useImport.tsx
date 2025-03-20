@@ -1,7 +1,11 @@
 
 import { useState } from 'react';
 import { ImportOptions, ImportResult } from './types';
-import { importFromFile, validateImportPackage, mergeImportedData } from '@/services/importExportService';
+import { 
+  importFromFile, 
+  validateImportPackage, 
+  mergeImportedData 
+} from '@/services/import-export/importService';
 import { useToast } from '@/components/ui/use-toast';
 
 /**
