@@ -45,13 +45,17 @@ const Index = () => {
   return (
     <div className="h-screen flex flex-col bg-background">
       <div className="flex h-full overflow-hidden">
-        <Sidebar 
-          isOpen={sidebarOpen} 
-          onClose={() => setSidebarOpen(false)}
-          activeSection={activeSection}
-          onSectionChange={setActiveSection} 
-        />
+        {/* Sidebar with proper positioning */}
+        <div className={`w-64 shrink-0 ${sidebarOpen ? 'md:block' : 'hidden'}`}>
+          <Sidebar 
+            isOpen={sidebarOpen} 
+            onClose={() => setSidebarOpen(false)}
+            activeSection={activeSection}
+            onSectionChange={setActiveSection} 
+          />
+        </div>
         
+        {/* Main content area */}
         <div className="flex-1 flex flex-col h-full overflow-hidden">
           <Header 
             onToggleSidebar={toggleSidebar}
