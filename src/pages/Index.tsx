@@ -13,7 +13,7 @@ import { useNotes } from '@/hooks/useNotes';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 
 const Index = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeSection, setActiveSection] = useState('editor');
   const [showChat, setShowChat] = useState(true);
   const { folderTree } = useFolders();
@@ -43,8 +43,8 @@ const Index = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      <div className="flex h-full">
+    <div className="h-screen flex flex-col bg-background">
+      <div className="flex h-full overflow-hidden">
         <Sidebar 
           isOpen={sidebarOpen} 
           onClose={() => setSidebarOpen(false)}
@@ -52,7 +52,7 @@ const Index = () => {
           onSectionChange={setActiveSection} 
         />
         
-        <div className="flex-1 flex flex-col h-full md:ml-64">
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
           <Header 
             onToggleSidebar={toggleSidebar}
             onToggleChat={toggleChat}
