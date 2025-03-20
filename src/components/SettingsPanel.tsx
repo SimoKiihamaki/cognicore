@@ -1,112 +1,86 @@
 import { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
-import { 
-  Settings, 
-  Folder, 
-  ServerCog, 
-  Brain, 
-  Palette, 
-  WifiOff,
-  CacheIcon
-} from 'lucide-react';
-import FolderMonitorSettings from './settings/FolderMonitorSettings';
-import OfflineSettings from './settings/OfflineSettings';
-import EmbeddingsSettings from './settings/EmbeddingsSettings';
-import CacheSettings from './settings/CacheSettings';
-// import ThemeSettings from './settings/ThemeSettings';
-// import LMStudioSettings from './settings/LMStudioSettings';
-import SafeThemeSettings from './settings/SafeThemeSettings';
-import ErrorBoundary from './ErrorBoundary';
+import { Settings, User, Paintbrush, Database, FolderCog } from 'lucide-react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import { ScrollArea } from "@/components/ui/scroll-area"
+
+import AppearanceSettings from './AppearanceSettings';
+import LMStudioSettings from './LMStudioSettings';
+import FolderMonitorSettings from './FolderMonitorSettings';
+import CacheSettings from './CacheSettings';
+import SafeThemeSettings from './SafeThemeSettings';
 
 const SettingsPanel = () => {
-  const [activeTab, setActiveTab] = useState('general');
+  const [expandedPanels, setExpandedPanels] = useState<string[]>([]);
+
+  const handlePanelToggle = (panelId: string) => {
+    setExpandedPanels((prevExpanded) =>
+      prevExpanded.includes(panelId)
+        ? prevExpanded.filter((id) => id !== panelId)
+        : [...prevExpanded, panelId]
+    );
+  };
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-4 border-b border-border">
-        <h2 className="text-lg font-medium flex items-center gap-2">
-          <Settings className="h-5 w-5" />
-          Settings
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Configure application settings and preferences.
-        </p>
-      </div>
+    <ScrollArea className="h-full">
+      <div className="p-6">
+        <Accordion type="multiple" defaultValue={expandedPanels} className="w-full">
+          <AccordionItem value="appearance" >
+            <AccordionTrigger className="data-[state=open]:text-foreground" id="appearance-settings">
+              <Paintbrush className="mr-2 h-4 w-4" />
+              Appearance
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <AppearanceSettings />
+            </AccordionContent>
+          </AccordionItem>
 
-      <div className="flex-1 p-4 overflow-auto scrollbar-thin">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <TabsList className="grid grid-cols-6 mb-4">
-            <TabsTrigger value="general" className="flex items-center gap-1">
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">General</span>
-            </TabsTrigger>
-            <TabsTrigger value="folders" className="flex items-center gap-1">
-              <Folder className="h-4 w-4" />
-              <span className="hidden sm:inline">Files</span>
-            </TabsTrigger>
-            <TabsTrigger value="ai" className="flex items-center gap-1">
-              <Brain className="h-4 w-4" />
-              <span className="hidden sm:inline">AI</span>
-            </TabsTrigger>
-            <TabsTrigger value="cache" className="flex items-center gap-1">
-              <CacheIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">Cache</span>
-            </TabsTrigger>
-            <TabsTrigger value="offline" className="flex items-center gap-1">
-              <WifiOff className="h-4 w-4" />
-              <span className="hidden sm:inline">Offline</span>
-            </TabsTrigger>
-            <TabsTrigger value="appearance" className="flex items-center gap-1">
-              <Palette className="h-4 w-4" />
-              <span className="hidden sm:inline">Appearance</span>
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="general" className="flex-1 space-y-6">
-            <div>
-              <h3 className="text-lg font-medium">General Settings</h3>
-              <p className="text-sm text-muted-foreground">
-                Configure general application settings.
-              </p>
-            </div>
-            <Separator />
-            
-            <div className="grid gap-6">
-              <div>
-                <h4 className="text-sm font-medium mb-2">Application Preferences</h4>
-                <p className="text-sm text-muted-foreground">
-                  General settings will be implemented here.
-                </p>
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="folders" className="flex-1">
-            <FolderMonitorSettings />
-          </TabsContent>
-          
-          <TabsContent value="ai" className="flex-1">
-            {/* Wrap in error boundary for safer rendering */}
-            <ErrorBoundary fallback={<p className="p-4">Error loading LM Studio settings</p>}>
-              <EmbeddingsSettings />
-            </ErrorBoundary>
-          </TabsContent>
-          
-          <TabsContent value="cache" className="flex-1">
-            <CacheSettings />
-          </TabsContent>
-          
-          <TabsContent value="offline" className="flex-1">
-            <OfflineSettings />
-          </TabsContent>
-          
-          <TabsContent value="appearance" className="flex-1">
-            <SafeThemeSettings />
-          </TabsContent>
-        </Tabs>
+          <AccordionItem value="lm-studio">
+            <AccordionTrigger className="data-[state=open]:text-foreground" id="lm-studio-settings">
+              <Settings className="mr-2 h-4 w-4" />
+              LM Studio
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <LMStudioSettings />
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="folder-monitor">
+            <AccordionTrigger className="data-[state=open]:text-foreground" id="folder-monitor-settings">
+              <FolderCog className="mr-2 h-4 w-4" />
+              Folder Monitor
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <FolderMonitorSettings />
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="cache">
+            <AccordionTrigger className="data-[state=open]:text-foreground" id="cache-settings">
+              <Database className="mr-2 h-4 w-4" />
+              Cache
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <CacheSettings />
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="theme">
+            <AccordionTrigger className="data-[state=open]:text-foreground" id="theme-settings">
+              <Paintbrush className="mr-2 h-4 w-4" />
+              Theme
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <SafeThemeSettings />
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
-    </div>
+    </ScrollArea>
   );
 };
 

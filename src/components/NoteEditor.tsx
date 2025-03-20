@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useNotes } from '@/hooks/useNotes';
 import { useFolders } from '@/hooks/useFolders';
@@ -45,17 +44,14 @@ const NoteEditor = () => {
     generateNoteEmbeddings
   } = useEmbeddings();
   
-  // Find similar notes to the current content
   const similarNotes = useCallback(() => {
     if (!currentNoteId || !content.trim()) return [];
     
-    return findSimilarItems(currentNoteId, 0.3, 5);
+    return findSimilarItems(currentNoteId, 0.3);
   }, [currentNoteId, content, findSimilarItems]);
   
-  // Create a new note
   const createNewNote = () => {
     if (currentNoteId) {
-      // If we're editing a note, save it first
       handleSave();
     }
     
@@ -66,7 +62,6 @@ const NoteEditor = () => {
     setIsPreviewMode(false);
   };
   
-  // Load an existing note
   const loadNote = (noteId: string) => {
     const note = getNote(noteId);
     if (note) {
@@ -79,16 +74,12 @@ const NoteEditor = () => {
     }
   };
 
-  // Auto-save timer
   useEffect(() => {
-    // Clear any existing timer when content changes
     if (saveTimer) {
       clearTimeout(saveTimer);
     }
     
-    // Only set auto-save if we have content and either a title or existing note
     if ((title.trim() || currentNoteId) && content.trim()) {
-      // Set a new timer to save after 2 seconds of inactivity
       const timer = setTimeout(() => {
         handleSave();
       }, 2000);
@@ -96,7 +87,6 @@ const NoteEditor = () => {
       setSaveTimer(timer);
     }
     
-    // Cleanup timer on unmount
     return () => {
       if (saveTimer) {
         clearTimeout(saveTimer);
@@ -105,7 +95,6 @@ const NoteEditor = () => {
   }, [title, content]);
   
   const handleSave = async () => {
-    // Require at least a title
     if (!title.trim()) {
       toast.error('Please add a title to save your note.');
       return;
@@ -115,14 +104,12 @@ const NoteEditor = () => {
     
     try {
       if (currentNoteId) {
-        // Update existing note
         updateNote(currentNoteId, {
           title,
           content,
           folderId: selectedFolderId
         });
       } else {
-        // Create new note
         const newNoteId = addNote(title, content, selectedFolderId);
         setCurrentNoteId(newNoteId);
       }
@@ -130,7 +117,6 @@ const NoteEditor = () => {
       setSavedStatus('saved');
       toast.success('Note saved successfully');
       
-      // Now generate embeddings in the background
       if (currentNoteId || currentNoteId !== null) {
         setProcessingEmbeddings(true);
         try {
@@ -153,7 +139,6 @@ const NoteEditor = () => {
       setSavedStatus('unsaved');
     }
     
-    // Reset to unsaved after 5 seconds
     setTimeout(() => {
       if (savedStatus === 'saved') {
         setSavedStatus('unsaved');
@@ -166,14 +151,12 @@ const NoteEditor = () => {
       deleteNote(currentNoteId);
       setIsDeleteDialogOpen(false);
       
-      // Reset the editor
       createNewNote();
       
       toast.success('Note deleted successfully');
     }
   };
   
-  // Get the flat path of a folder by its ID
   const getFolderPathById = (folderId: string): string[] => {
     const result: string[] = [];
     
@@ -197,10 +180,8 @@ const NoteEditor = () => {
   const folderPath = getFolderPathById(selectedFolderId);
   const currentFolderName = folderPath[folderPath.length - 1] || 'Notes';
 
-  // Key handler for the entire component
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Save on Ctrl+S or Command+S
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         handleSave();

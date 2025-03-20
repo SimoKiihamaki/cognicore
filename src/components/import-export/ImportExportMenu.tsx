@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Import, Export, FileDown, FileUp, FilePlus, FileJson, Book } from 'lucide-react';
+import { Import, FileExport, FileDown, FileUp, FilePlus, FileJson, Book } from 'lucide-react';
 import ImportDialog from './ImportDialog';
 import ExportDialog from './ExportDialog';
 
@@ -48,7 +48,7 @@ const ImportExportMenu = ({
               <span>Import Data</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setShowExportDialog(true)}>
-              <FileDown className="mr-2 h-4 w-4" />
+              <FileExport className="mr-2 h-4 w-4" />
               <span>Export Data...</span>
             </DropdownMenuItem>
           </DropdownMenuGroup>

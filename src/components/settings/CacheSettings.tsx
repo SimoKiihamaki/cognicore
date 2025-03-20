@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { 
-  CacheIcon, 
+  Database, 
   MemoryStick, 
   Trash2, 
   BarChart3, 
@@ -179,7 +179,7 @@ const CacheSettings = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
-            <CacheIcon className="mr-2 h-5 w-5" />
+            <Database className="mr-2 h-5 w-5" />
             Cache Management
           </CardTitle>
           <CardDescription>

@@ -15,4 +15,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Initialize polyfills
+initFileSystemPolyfills();
+
 createRoot(document.getElementById("root")!).render(<App />);

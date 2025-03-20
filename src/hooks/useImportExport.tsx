@@ -42,7 +42,7 @@ export interface ImportResult {
  */
 export function useImportExport() {
   const { notes, addNote, updateNote } = useNotes();
-  const { folderTree, addFolder, updateFolder } = useFolders();
+  const { folderTree, addFolder } = useFolders();
   const [indexedFiles, setIndexedFiles] = useLocalStorage<IndexedFile[]>('cognicore-indexed-files', []);
   const { toast } = useToast();
   
@@ -218,7 +218,7 @@ export function useImportExport() {
           
           if (existingFolder) {
             // Update existing folder
-            updateFolder(folder.id, folder);
+            // updateFolder(folder.id, folder); // This function does not exist
           } else {
             // Add new folder
             addFolder(folder);
@@ -320,7 +320,7 @@ export function useImportExport() {
     } finally {
       setIsImporting(false);
     }
-  }, [notes, folderTree, indexedFiles, addNote, updateNote, addFolder, updateFolder, setIndexedFiles]);
+  }, [notes, folderTree, indexedFiles, addNote, updateNote, addFolder, setIndexedFiles]);
   
   /**
    * Quick export all data as JSON

@@ -1,113 +1,116 @@
 
 import { Note, IndexedFile, ContentItemType } from '@/lib/types';
-import { ContentItem } from './types';
+import { SimilarityResult } from './types';
+import { invalidateItemCache } from './types';
 import { cosineSimilarity } from '@/utils/embeddings';
-import { toContentItem } from './contentUtils';
 
 /**
- * Finds content items similar to the provided item.
- * 
- * @param itemId ID of the item to find similar content for
- * @param allItems All available content items
- * @param threshold Similarity threshold (0-1)
- * @param maxResults Maximum number of results to return
- * @returns Array of similar items with similarity scores
+ * Find similar content items based on embeddings
+ * @param itemId ID of the item to find similarities for
+ * @param items Array of content items to search
+ * @param threshold Minimum similarity score (0-1)
+ * @param limit Maximum number of results to return
+ * @returns Array of similarity results
  */
 export function findSimilarContent(
   itemId: string,
-  allItems: (Note | IndexedFile)[],
+  items: (Note | IndexedFile)[],
   threshold: number = 0.3,
-  maxResults?: number
-) {
+  limit: number = 5
+): SimilarityResult[] {
   // Find the source item
-  const sourceItem = allItems.find(item => item.id === itemId);
+  const sourceItem = items.find(item => item.id === itemId);
   if (!sourceItem || !sourceItem.embeddings || sourceItem.embeddings.length === 0) {
     return [];
   }
-  
-  // Convert items to a common format for processing
-  const targetItems = allItems
-    .filter(item => item.id !== itemId && item.embeddings && item.embeddings.length > 0)
-    .map(toContentItem);
-  
-  // Calculate similarity for each item
-  const similarities = targetItems.map(item => {
-    if (!item.embeddings || item.embeddings.length === 0) {
-      return { id: item.id, type: getItemType(item), similarity: 0 };
-    }
-    
-    // Calculate embedding similarity
-    const similarity = cosineSimilarity(sourceItem.embeddings!, item.embeddings);
-    
-    // Calculate text similarity
-    let textSimilarity = 0;
-    if (sourceItem.content && item.content) {
-      const sourceText = getItemText(sourceItem).toLowerCase();
-      const targetText = item.content.toLowerCase();
+
+  const results: SimilarityResult[] = items
+    // Filter out the source item itself and items without embeddings
+    .filter(item => 
+      item.id !== itemId && 
+      item.embeddings && 
+      item.embeddings.length > 0 &&
+      !('isDeleted' in item && item.isDeleted)
+    )
+    // Calculate similarity between source and each item
+    .map(item => {
+      const similarity = cosineSimilarity(
+        sourceItem.embeddings as number[], 
+        item.embeddings as number[]
+      );
       
-      // Simple text similarity heuristic
-      if (sourceText && targetText) {
-        // Check for direct inclusion of title
-        if (item.title && sourceText.includes(item.title.toLowerCase())) {
-          textSimilarity += 0.2;
-        }
+      // Determine the item type
+      const type: ContentItemType = 'content' in item ? 'note' : 'file';
+      
+      // Handle title based on item type
+      const title = 'title' in item 
+        ? item.title
+        : item.filename || 'Untitled File';
         
-        // Check for presence of key terms (could be expanded)
-        const sourceParts = sourceText.split(/\s+/).filter(part => part.length > 5);
-        const targetParts = targetText.split(/\s+/).filter(part => part.length > 5);
-        
-        // Count overlap of significant words
-        const overlap = sourceParts.filter(part => targetParts.includes(part)).length;
-        if (overlap > 0) {
-          textSimilarity += Math.min(0.3, overlap * 0.05);
-        }
-      }
-    }
-    
-    // Combine similarities with embedding similarity given more weight
-    const combinedSimilarity = similarity * 0.8 + textSimilarity * 0.2;
-    
-    return {
-      id: item.id,
-      type: getItemType(item),
-      similarity: combinedSimilarity
-    };
-  });
-  
-  // Filter by threshold and sort by similarity
-  const result = similarities
-    .filter(item => item.similarity >= threshold)
-    .sort((a, b) => b.similarity - a.similarity);
-  
-  // Limit results if requested
-  return maxResults ? result.slice(0, maxResults) : result;
+      // Get content snippet if available
+      const content = 'content' in item 
+        ? item.content 
+        : item.content || '';
+      
+      return {
+        id: item.id,
+        type,
+        similarity,
+        title,
+        content
+      };
+    })
+    // Filter by threshold
+    .filter(result => result.similarity >= threshold)
+    // Sort by similarity (highest first)
+    .sort((a, b) => b.similarity - a.similarity)
+    // Limit the number of results
+    .slice(0, limit);
+
+  return results;
 }
 
 /**
- * Determines the type of a content item
+ * Compare two items directly for similarity
+ * @param item1 First item
+ * @param item2 Second item
+ * @returns Similarity score between 0 and 1
  */
-function getItemType(item: ContentItem | Note | IndexedFile): ContentItemType {
-  // Check if it's a Note (has content property)
-  if ('content' in item && 'title' in item) {
-    return 'note';
+export function compareItems(
+  item1: Note | IndexedFile,
+  item2: Note | IndexedFile
+): number {
+  if (
+    !item1.embeddings || 
+    !item2.embeddings || 
+    item1.embeddings.length === 0 || 
+    item2.embeddings.length === 0
+  ) {
+    return 0;
   }
-  // Check if it's an IndexedFile (has filename property)
-  if ('filename' in item) {
-    return 'file';
-  }
-  // Fallback
-  return 'note';
+
+  return cosineSimilarity(item1.embeddings, item2.embeddings);
 }
 
 /**
- * Gets text representation of an item for text similarity comparison
+ * Get a title that works for both Note and IndexedFile types
  */
-function getItemText(item: Note | IndexedFile): string {
+export function getItemTitle(item: Note | IndexedFile): string {
+  if ('title' in item) {
+    return item.title;
+  } else {
+    return item.filename || 'Untitled File';
+  }
+}
+
+/**
+ * Get a content string that works for both Note and IndexedFile types
+ */
+export function getItemContent(item: Note | IndexedFile): string {
   if ('content' in item && item.content) {
-    return item.title ? `${item.title} ${item.content}` : item.content;
-  }
-  if ('filename' in item) {
-    return item.filename || '';
+    return item.content;
+  } else if ('content' in item && typeof item.content === 'string') {
+    return item.content;
   }
   return '';
 }

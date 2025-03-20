@@ -1,149 +1,49 @@
-/**
- * Embeddings Utility Functions
- * 
- * Contains utilities for generating, storing, and manipulating text embeddings,
- * along with similarity calculations.
- */
-
-import embeddingWorkerService from '@/services/embeddingWorkerService';
 
 /**
  * Calculate cosine similarity between two embedding vectors
- * 
- * @param embedding1 First embedding vector
- * @param embedding2 Second embedding vector
- * @returns Cosine similarity score (0-1)
+ * @param a First embedding vector
+ * @param b Second embedding vector
+ * @returns Similarity score between 0 and 1
  */
-export function calculateCosineSimilarity(embedding1: number[], embedding2: number[]): number {
-  if (!embedding1 || !embedding2 || embedding1.length !== embedding2.length) {
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) {
+    console.error('Embedding vectors must be of the same length');
     return 0;
   }
 
   let dotProduct = 0;
-  let magnitude1 = 0;
-  let magnitude2 = 0;
+  let normA = 0;
+  let normB = 0;
 
-  // Calculate dot product and magnitudes
-  for (let i = 0; i < embedding1.length; i++) {
-    dotProduct += embedding1[i] * embedding2[i];
-    magnitude1 += embedding1[i] * embedding1[i];
-    magnitude2 += embedding2[i] * embedding2[i];
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
   }
 
-  magnitude1 = Math.sqrt(magnitude1);
-  magnitude2 = Math.sqrt(magnitude2);
+  normA = Math.sqrt(normA);
+  normB = Math.sqrt(normB);
 
-  // Check to avoid division by zero
-  if (magnitude1 === 0 || magnitude2 === 0) {
+  if (normA === 0 || normB === 0) {
     return 0;
   }
 
-  // Calculate and return cosine similarity
-  return dotProduct / (magnitude1 * magnitude2);
+  // Cosine similarity formula: dot product / (magnitude of a * magnitude of b)
+  return dotProduct / (normA * normB);
 }
 
 /**
- * Generate embeddings for a text string using the worker service
- * 
- * @param text Text to generate embeddings for
- * @param modelName Optional model name (defaults to service default)
- * @returns Embedding vector array
+ * Computes the Euclidean distance between two vectors
  */
-export async function getTextEmbeddings(
-  text: string,
-  modelName?: string
-): Promise<number[]> {
-  try {
-    // Change model if specified
-    if (modelName) {
-      await embeddingWorkerService.changeModel(modelName);
-    }
-    
-    // Generate embedding
-    return await embeddingWorkerService.generateEmbedding(text);
-  } catch (error) {
-    console.error('Failed to generate text embeddings:', error);
-    throw error;
+export function euclideanDistance(a: number[], b: number[]): number {
+  if (a.length !== b.length) {
+    throw new Error('Vectors must have the same dimensions');
   }
-}
-
-/**
- * Batch create embeddings for multiple texts
- * 
- * @param texts Array of text strings to process
- * @param itemIds Optional array of IDs corresponding to each text
- * @param modelName Optional model name (defaults to service default)
- * @param progressCallback Optional callback for progress updates
- * @returns Array of results with embeddings
- */
-export async function batchCreateEmbeddings(
-  texts: string[],
-  itemIds?: string[],
-  modelName?: string,
-  progressCallback?: (completed: number, total: number) => void
-): Promise<{
-  embedding: number[] | null;
-  success: boolean;
-  error?: string;
-  id: string | null;
-  index: number;
-}[]> {
-  try {
-    // Set progress callback if provided
-    if (progressCallback) {
-      embeddingWorkerService.setBatchProgressCallback(progressCallback);
-    }
-    
-    // Change model if specified
-    if (modelName) {
-      await embeddingWorkerService.changeModel(modelName);
-    }
-    
-    // Generate batch embeddings
-    return await embeddingWorkerService.generateBatchEmbeddings(texts, itemIds);
-  } catch (error) {
-    console.error('Failed to batch create embeddings:', error);
-    throw error;
-  } finally {
-    // Clear the progress callback
-    if (progressCallback) {
-      embeddingWorkerService.setBatchProgressCallback(null);
-    }
+  
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) {
+    sum += Math.pow(a[i] - b[i], 2);
   }
-}
-
-/**
- * Check if the embedding service is initialized
- * 
- * @param modelName Optional model name to initialize with
- * @returns Promise resolving to true if initialized successfully
- */
-export async function initializeEmbeddingService(
-  modelName?: string,
-  statusCallback?: (status: string) => void
-): Promise<boolean> {
-  try {
-    // Set status callback if provided
-    if (statusCallback) {
-      embeddingWorkerService.setProgressCallback(statusCallback);
-    }
-    
-    // Initialize service
-    return await embeddingWorkerService.initialize(modelName);
-  } catch (error) {
-    console.error('Failed to initialize embedding service:', error);
-    throw error;
-  } finally {
-    // Clear the status callback
-    if (statusCallback) {
-      embeddingWorkerService.setProgressCallback(null);
-    }
-  }
-}
-
-/**
- * Cleanup the embedding service (should be called on app shutdown)
- */
-export function terminateEmbeddingService(): void {
-  embeddingWorkerService.terminate();
+  
+  return Math.sqrt(sum);
 }

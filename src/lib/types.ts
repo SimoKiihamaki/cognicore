@@ -1,4 +1,3 @@
-
 export interface Note {
   id: string;
   title: string;
@@ -7,6 +6,7 @@ export interface Note {
   embeddings?: number[];
   createdAt: Date;
   updatedAt: Date;
+  tags?: string[];
 }
 
 export interface IndexedFile {

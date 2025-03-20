@@ -27,7 +27,7 @@ export interface SimilarityResult {
   id: string;
   type: ContentItemType;
   similarity: number;
-  title?: string;
+  title: string;
   content?: string;
 }
 
