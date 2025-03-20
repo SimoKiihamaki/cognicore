@@ -106,7 +106,7 @@ export function useImportExport() {
       
       if (exportFormat === 'json') {
         // Use the import/export service to create a JSON export
-        blobUrl = exportData(processedNotes, filesToExport, foldersToExport, settingsToExport, metadata);
+        const blobUrl = exportData(processedNotes, filesToExport, foldersToExport, settingsToExport, metadata);
         filename += '.json';
       } else if (exportFormat === 'markdown') {
         // For markdown export, a different approach would be needed
@@ -115,7 +115,7 @@ export function useImportExport() {
         if (exportData.splitFiles) {
           // This would generate a zip file with individual markdown files
           // For simplicity, we're just using JSON for now
-          blobUrl = exportData(processedNotes, [], [], {}, metadata);
+          const blobUrl = exportData(processedNotes, [], [], {}, metadata);
           filename += '-markdown.zip';
         } else {
           // Single markdown file with all notes
@@ -189,7 +189,7 @@ export function useImportExport() {
       setImportProgress(10);
       
       // Import and parse the file
-      const importedData = await importFromFile(file);
+      const importedData = await importFromFile(file, options);
       setImportProgress(40);
       
       // Merge imported data with existing data

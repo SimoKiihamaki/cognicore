@@ -103,7 +103,7 @@ const OfflineIndicator = ({ className = '' }: OfflineIndicatorProps) => {
                   id="offline-mode"
                   checked={isOfflineModeEnabled}
                   onCheckedChange={handleOfflineModeToggle}
-                  size="sm"
+                  className="scale-90"
                 />
               </div>
               {!isServiceWorkerActive && isOnline && (

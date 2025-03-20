@@ -36,23 +36,30 @@ export function calculateCosineSimilarity(vecA: number[], vecB: number[]): numbe
   return cosineSimilarity(vecA, vecB);
 }
 
+// Interface for batch processing results
+export interface EmbeddingResult {
+  id: string;
+  embedding: number[];
+  success: boolean;
+  error?: string;
+}
+
 /**
  * Generate text embeddings using the worker service
  * 
  * @param text Text to generate embeddings for
  * @returns Promise that resolves to the embedding vector
  */
-export async function getTextEmbeddings(text: string | string[]): Promise<number[]> {
+export async function getTextEmbeddings(text: string): Promise<number[]> {
   // For simplicity, return a dummy embedding vector
   // In a real implementation, this would call an actual embedding service
-  const texts = Array.isArray(text) ? text.join(' ') : text;
   
   // Generate a simple hash-based vector (just for demo, not a real embedding)
   const vector = new Array(128).fill(0);
   let hash = 0;
   
-  for (let i = 0; i < texts.length; i++) {
-    hash = ((hash << 5) - hash) + texts.charCodeAt(i);
+  for (let i = 0; i < text.length; i++) {
+    hash = ((hash << 5) - hash) + text.charCodeAt(i);
     hash = hash & hash;
     vector[hash % 128] = hash % 100 / 100;
   }
@@ -64,13 +71,39 @@ export async function getTextEmbeddings(text: string | string[]): Promise<number
  * Create embeddings for a batch of texts
  * 
  * @param texts Array of texts to generate embeddings for
- * @returns Promise that resolves to an array of embedding vectors
+ * @param ids Array of IDs corresponding to each text
+ * @param progressCallback Optional callback for reporting progress
+ * @returns Promise that resolves to an array of embedding results
  */
-export async function batchCreateEmbeddings(texts: string[]): Promise<number[][]> {
-  const results: number[][] = [];
+export async function batchCreateEmbeddings(
+  texts: string[], 
+  ids?: string[],
+  progressCallback?: (completed: number, total: number) => void
+): Promise<EmbeddingResult[]> {
+  const results: EmbeddingResult[] = [];
+  const total = texts.length;
   
-  for (const text of texts) {
-    results.push(await getTextEmbeddings(text));
+  for (let i = 0; i < texts.length; i++) {
+    try {
+      const embedding = await getTextEmbeddings(texts[i]);
+      results.push({
+        id: ids ? ids[i] : `item-${i}`,
+        embedding,
+        success: true
+      });
+    } catch (error) {
+      results.push({
+        id: ids ? ids[i] : `item-${i}`,
+        embedding: [],
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+    
+    // Call progress callback if provided
+    if (progressCallback) {
+      progressCallback(i + 1, total);
+    }
   }
   
   return results;

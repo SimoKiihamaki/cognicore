@@ -39,9 +39,11 @@ const App = () => {
     const modelName = localStorage.getItem('cognicore-embedding-model') || 'Xenova/all-MiniLM-L6-v2';
     
     // Initialize embedding service
-    initializeEmbeddingService(modelName).catch(error => {
+    try {
+      initializeEmbeddingService();
+    } catch (error) {
       console.error('Failed to initialize embedding service:', error);
-    });
+    }
     
     // Clean up on unmount
     return () => {

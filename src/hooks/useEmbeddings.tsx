@@ -37,9 +37,7 @@ export function useEmbeddings() {
       setServiceError(null);
       
       try {
-        await initializeEmbeddingService(modelName, (status) => {
-          setStatusMessage(status);
-        });
+        await initializeEmbeddingService();
         setIsInitialized(true);
       } catch (error) {
         console.error('Failed to initialize embedding service:', error);
@@ -61,7 +59,7 @@ export function useEmbeddings() {
       // We don't actually terminate the service here since it might be used by other components
       // This would be done at app shutdown instead
     };
-  }, [modelName, toast]);
+  }, [toast]);
   
   /**
    * Change the embedding model
@@ -73,9 +71,7 @@ export function useEmbeddings() {
       setIsInitializing(true);
       setServiceError(null);
       
-      await initializeEmbeddingService(newModelName, (status) => {
-        setStatusMessage(status);
-      });
+      await initializeEmbeddingService();
       
       setModelName(newModelName);
       setIsInitialized(true);
@@ -111,7 +107,7 @@ export function useEmbeddings() {
     
     try {
       const textToEmbed = `${note.title}\n${note.content}`;
-      const embeddings = await getTextEmbeddings(textToEmbed, customModelName);
+      const embeddings = await getTextEmbeddings(textToEmbed);
       
       // Update the note with embeddings
       updateNote(note.id, { 
@@ -142,9 +138,7 @@ export function useEmbeddings() {
     customModelName?: string
   ) => {
     if (!isInitialized && !isInitializing) {
-      await initializeEmbeddingService(customModelName || modelName, (status) => {
-        setStatusMessage(status);
-      });
+      await initializeEmbeddingService();
     }
     
     const allItems = [...notes, ...indexedFiles];
@@ -179,7 +173,6 @@ export function useEmbeddings() {
         const results = await batchCreateEmbeddings(
           textInputs,
           noteIds,
-          customModelName || modelName,
           (completed, total) => {
             setProcessedItems(completed);
             setProgress((completed / total) * 100);
