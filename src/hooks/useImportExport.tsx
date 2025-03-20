@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { useNotes } from './useNotes';
 import { useFolders } from './useFolders';
@@ -294,8 +295,8 @@ export function useImportExport() {
       includeFiles: true,
       includeSettings: true,
       includeEmbeddings,
-      format: 'json',
-      description
+      description,
+      format: 'json'
     });
   }, [exportItems]);
   
@@ -309,9 +310,9 @@ export function useImportExport() {
       includeFiles: false,
       includeSettings: false,
       includeEmbeddings: false,
+      description,
       format: 'markdown',
-      splitFiles,
-      description
+      splitFiles
     });
   }, [exportItems]);
   
