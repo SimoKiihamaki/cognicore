@@ -1,8 +1,11 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNotes } from '@/hooks/useNotes';
 import { useFolders } from '@/hooks/useFolders';
+import { useEmbeddings } from '@/hooks/useEmbeddings';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 
 // Import refactored components
 import EditorHeader from './note-editor/EditorHeader';
@@ -15,25 +18,39 @@ import FolderSelector from './note-editor/FolderSelector';
 const NoteEditor = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [savedStatus, setSavedStatus] = useState('unsaved');
+  const [savedStatus, setSavedStatus] = useState<'unsaved' | 'saving' | 'saved'>('unsaved');
   const [selectedFolderId, setSelectedFolderId] = useState('root');
   const [currentNoteId, setCurrentNoteId] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isFolderSelectorOpen, setIsFolderSelectorOpen] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [processingEmbeddings, setProcessingEmbeddings] = useState(false);
+  const [saveTimer, setSaveTimer] = useState<NodeJS.Timeout | null>(null);
   
   const { 
     notes, 
     addNote, 
     updateNote, 
     deleteNote,
-    getNote 
+    getNote,
+    findSimilarItems
   } = useNotes();
   
   const { 
     folderTree, 
     folders 
   } = useFolders();
+
+  const {
+    generateNoteEmbeddings
+  } = useEmbeddings();
+  
+  // Find similar notes to the current content
+  const similarNotes = useCallback(() => {
+    if (!currentNoteId || !content.trim()) return [];
+    
+    return findSimilarItems(currentNoteId, 0.3, 5);
+  }, [currentNoteId, content, findSimilarItems]);
   
   // Create a new note
   const createNewNote = () => {
@@ -61,8 +78,33 @@ const NoteEditor = () => {
       setIsPreviewMode(false);
     }
   };
+
+  // Auto-save timer
+  useEffect(() => {
+    // Clear any existing timer when content changes
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+    }
+    
+    // Only set auto-save if we have content and either a title or existing note
+    if ((title.trim() || currentNoteId) && content.trim()) {
+      // Set a new timer to save after 2 seconds of inactivity
+      const timer = setTimeout(() => {
+        handleSave();
+      }, 2000);
+      
+      setSaveTimer(timer);
+    }
+    
+    // Cleanup timer on unmount
+    return () => {
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+      }
+    };
+  }, [title, content]);
   
-  const handleSave = () => {
+  const handleSave = async () => {
     // Require at least a title
     if (!title.trim()) {
       toast.error('Please add a title to save your note.');
@@ -71,26 +113,51 @@ const NoteEditor = () => {
     
     setSavedStatus('saving');
     
-    if (currentNoteId) {
-      // Update existing note
-      updateNote(currentNoteId, {
-        title,
-        content,
-        folderId: selectedFolderId
-      });
-    } else {
-      // Create new note
-      const newNoteId = addNote(title, content, selectedFolderId);
-      setCurrentNoteId(newNoteId);
+    try {
+      if (currentNoteId) {
+        // Update existing note
+        updateNote(currentNoteId, {
+          title,
+          content,
+          folderId: selectedFolderId
+        });
+      } else {
+        // Create new note
+        const newNoteId = addNote(title, content, selectedFolderId);
+        setCurrentNoteId(newNoteId);
+      }
+      
+      setSavedStatus('saved');
+      toast.success('Note saved successfully');
+      
+      // Now generate embeddings in the background
+      if (currentNoteId || currentNoteId !== null) {
+        setProcessingEmbeddings(true);
+        try {
+          const noteId = currentNoteId || getNote(title)?.id;
+          if (noteId) {
+            const note = getNote(noteId);
+            if (note) {
+              await generateNoteEmbeddings(note);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to generate embeddings:', error);
+        } finally {
+          setProcessingEmbeddings(false);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save note:', error);
+      toast.error('Failed to save note. Please try again.');
+      setSavedStatus('unsaved');
     }
-    
-    setSavedStatus('saved');
-    
-    toast.success('Note saved successfully');
     
     // Reset to unsaved after 5 seconds
     setTimeout(() => {
-      setSavedStatus('unsaved');
+      if (savedStatus === 'saved') {
+        setSavedStatus('unsaved');
+      }
     }, 5000);
   };
   
@@ -152,12 +219,13 @@ const NoteEditor = () => {
       <EditorHeader
         title={title}
         currentNoteId={currentNoteId}
-        savedStatus={savedStatus as 'unsaved' | 'saving' | 'saved'}
+        savedStatus={savedStatus}
         folderName={currentFolderName}
         onSave={handleSave}
         onNewNote={createNewNote}
         onOpenFolderSelector={() => setIsFolderSelectorOpen(true)}
         onOpenDeleteDialog={() => setIsDeleteDialogOpen(true)}
+        processingEmbeddings={processingEmbeddings}
       />
       
       <FolderPath folderPath={folderPath} />
@@ -175,6 +243,46 @@ const NoteEditor = () => {
         hasCurrentNote={currentNoteId !== null}
         onDeleteClick={() => setIsDeleteDialogOpen(true)}
       />
+      
+      {currentNoteId && (
+        <div className="border-t border-border p-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium">Similar Notes</h3>
+            {processingEmbeddings && (
+              <div className="flex items-center text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                Processing...
+              </div>
+            )}
+          </div>
+          <div className="mt-2">
+            {similarNotes().length > 0 ? (
+              <div className="grid grid-cols-1 gap-2">
+                {similarNotes().map(note => (
+                  <Button
+                    key={note.id}
+                    variant="outline"
+                    size="sm"
+                    className="justify-start text-xs h-auto py-1.5 font-normal"
+                    onClick={() => loadNote(note.id)}
+                  >
+                    <div className="truncate">
+                      {note.title}
+                      <span className="ml-2 text-muted-foreground">
+                        ({Math.round(note.similarity * 100)}% similar)
+                      </span>
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                No similar notes found.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       
       <DeleteNoteDialog
         isOpen={isDeleteDialogOpen}

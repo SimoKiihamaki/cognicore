@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { Menu, Bell, MessageSquare } from 'lucide-react';
 import ThemeSwitcher from './ThemeSwitcher';
+import OfflineIndicator from './OfflineIndicator';
+import { ImportExportMenu } from './import-export';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -37,7 +39,7 @@ const Header = ({
         </Button>
       </div>
       
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-3">
         {onToggleChat && (
           <Button
             variant="ghost"
@@ -51,6 +53,7 @@ const Header = ({
           </Button>
         )}
         
+        <OfflineIndicator />
         <ThemeSwitcher />
         
         <DropdownMenu>

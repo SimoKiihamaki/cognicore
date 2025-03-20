@@ -1,69 +1,110 @@
-# Welcome to your Lovable project
+# CogniCore
 
-## Project info
+CogniCore is a lightweight, privacy-focused note-taking and knowledge management application that runs entirely in the browser. It leverages client-side storage and processing to provide an AI-powered note organization and querying experience, while ensuring all data remains local to the user's machine.
 
-**URL**: https://lovable.dev/projects/6f211fa5-5947-43cc-aac1-3de3a5830370
+## Features
 
-## How can I edit this code?
+- 🔒 **Privacy-First Design**: All data stays on your machine - no remote servers or cloud dependencies
+- 🧠 **AI-Powered Insights**: Connect with locally-hosted LLMs via LM Studio for advanced text and image interactions
+- 📊 **Automatic Knowledge Graph**: Visualize relationships between notes using sentence embeddings and cosine similarity
+- ✍️ **Rich Text Editing**: Create and edit notes with a fully-featured Markdown editor
+- 📁 **File System Integration**: Automatically monitor folders for changes and integrate new content
+- 🔍 **Semantic Search**: Find relevant notes based on meaning, not just keywords
+- 🌐 **MCP Server Integration**: Optional connection to Knowledge Model Control Protocol servers for extended capabilities
+- 📱 **Offline Support**: Full functionality even without network connectivity
+- 💾 **Import/Export**: Easily backup and transfer your knowledge base
+- 🚀 **Optimized Performance**: Web workers and advanced caching for smooth operation even with large datasets
 
-There are several ways of editing your application.
+## Getting Started
 
-**Use Lovable**
+### Prerequisites
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/6f211fa5-5947-43cc-aac1-3de3a5830370) and start prompting.
+- A modern web browser (Chrome, Firefox, Edge, Safari)
+- [LM Studio](https://lmstudio.ai/) (for local AI model integration)
 
-Changes made via Lovable will be committed automatically to this repo.
+### Installation
 
-**Use your preferred IDE**
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/cognicore.git
+   cd cognicore
+   ```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-Follow these steps:
+4. Build for production:
+   ```bash
+   npm run build
+   ```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+5. Preview the production build:
+   ```bash
+   npm run preview
+   ```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Usage
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Initial Setup
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+1. On first launch, you'll be prompted to configure LM Studio connection details
+2. Set up folders to monitor for automatic content integration
+3. Configure embedding model preferences for similarity detection
 
-**Edit a file directly in GitHub**
+### Core Workflows
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- **Note Creation**: Create notes directly in the editor or import from your filesystem
+- **Knowledge Exploration**: Use the graph visualization to discover connections between your notes
+- **AI Assistance**: Ask questions about your notes using the chat interface, which incorporates relevant context
+- **Content Organization**: Get automatic suggestions for organizing notes into folders based on content similarity
 
-**Use GitHub Codespaces**
+## Architecture
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+CogniCore is built with a modern frontend stack:
 
-## What technologies are used for this project?
+- **React 18** with TypeScript for type safety
+- **Vite** for fast development and optimized builds
+- **IndexedDB** and **LocalStorage** for client-side data persistence
+- **Web Workers** for background processing of computationally intensive tasks
+- **@xenova/transformers** for in-browser embedding generation
+- **Cytoscape.js** for interactive graph visualization
+- **TipTap** for the rich text editor
+- **ShadCN UI** and **TailwindCSS** for the modern, dark-themed interface
 
-This project is built with .
+## Privacy and Security
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Privacy is a core principle of CogniCore:
 
-## How can I deploy this project?
+- **Local-First**: All data is stored in your browser's IndexedDB and LocalStorage
+- **No Tracking**: No analytics, tracking, or telemetry of any kind
+- **No Remote Servers**: Does not depend on any cloud services (except optional MCP connections)
+- **Transparent Code**: Open source and auditable
 
-Simply open [Lovable](https://lovable.dev/projects/6f211fa5-5947-43cc-aac1-3de3a5830370) and click on Share -> Publish.
+## Contributing
 
-## I want to use a custom domain - is that possible?
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- ShadCN UI for the component library
+- TipTap for the rich text editor
+- Cytoscape.js for graph visualization
+- Xenova for the transformers.js library enabling in-browser embeddings
+- LM Studio for local LLM integration

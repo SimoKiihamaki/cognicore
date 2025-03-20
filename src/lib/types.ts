@@ -18,6 +18,7 @@ export interface IndexedFile {
   lastModified: Date;
   size: number;
   embeddings?: number[];
+  isDeleted?: boolean;
 }
 
 export interface Folder {
@@ -28,9 +29,40 @@ export interface Folder {
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
+  isError?: boolean;
+  referencedContexts?: string[];
+}
+
+export interface LMStudioConfig {
+  baseUrl: string;
+  apiKey: string;
+  primaryModelName: string;
+  secondaryModelName: string;
+  embeddingModelName: string;
+  connectionMode: 'local' | 'api';
+  temperature: number;
+  topP: number;
+  topK: number;
+  maxTokens: number;
+  useVision: boolean;
+}
+
+export interface ModelPreset {
+  name: string;
+  modelName: string;
+  contextLength: number;
+  description: string;
+  category: 'open' | 'proprietary';
+  tags: string[];
+  recommendedSettings?: {
+    temperature?: number;
+    topP?: number;
+    topK?: number;
+    maxTokens?: number;
+  };
 }
 
 export interface Settings {
@@ -42,6 +74,7 @@ export interface Settings {
   similarityThreshold: number;
   autoOrganizeNotes: boolean;
   embeddingModelName: string;
+  lmStudioConfig?: LMStudioConfig;
 }
 
 export interface GraphNode {
@@ -60,3 +93,27 @@ export interface GraphEdge {
 
 export type ContentItemType = "note" | "file";
 
+export interface MonitoredFolder {
+  id: string;
+  path: string;
+  handle: FileSystemDirectoryHandle;
+  isActive: boolean;
+}
+
+export interface MonitoringStats {
+  totalFiles: number;
+  filesMonitored: number;
+  filesProcessed: number;
+  activeMonitors: number;
+  lastScanTime: Date | null;
+  fileTypes: {
+    [key: string]: number;
+  };
+}
+
+export interface SimilarityResult {
+  id: string;
+  title: string;
+  type: ContentItemType;
+  similarity: number;
+}

@@ -1,4 +1,3 @@
-
 import { Note, Folder, IndexedFile, ContentItemType } from '@/lib/types';
 
 export interface ContentItem {
@@ -6,6 +5,8 @@ export interface ContentItem {
   title: string;
   content: string;
   folderId?: string;
+  embeddings?: number[];
+  keyTerms?: string[];
 }
 
 export interface OrganizationSuggestion {
@@ -19,4 +20,19 @@ export interface OrganizationSuggestion {
 export interface OrganizationResult {
   appliedCount: number;
   suggestions: OrganizationSuggestion[];
+}
+
+export interface SimilarityResult {
+  id: string;
+  type: ContentItemType;
+  similarity: number;
+  title?: string;
+  content?: string;
+}
+
+export interface EmbeddingJobResult {
+  id: string;
+  embeddings: number[];
+  success: boolean;
+  error?: string;
 }

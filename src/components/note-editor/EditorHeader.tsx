@@ -1,98 +1,117 @@
-
-import { Save, MoreVertical, FolderOpen } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { FC } from 'react';
+import { 
+  FilePlus, Save, Folder, Trash2, 
+  Check, Loader2, Brain 
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface EditorHeaderProps {
   title: string;
   currentNoteId: string | null;
   savedStatus: 'unsaved' | 'saving' | 'saved';
   folderName: string;
+  processingEmbeddings?: boolean;
   onSave: () => void;
   onNewNote: () => void;
   onOpenFolderSelector: () => void;
   onOpenDeleteDialog: () => void;
 }
 
-const EditorHeader = ({
+const EditorHeader: FC<EditorHeaderProps> = ({
   title,
   currentNoteId,
   savedStatus,
   folderName,
+  processingEmbeddings = false,
   onSave,
   onNewNote,
   onOpenFolderSelector,
-  onOpenDeleteDialog,
-}: EditorHeaderProps) => {
-  const getSaveButtonText = () => {
-    switch (savedStatus) {
-      case 'saving':
-        return 'Saving...';
-      case 'saved':
-        return 'Saved';
-      default:
-        return 'Save';
-    }
-  };
-
+  onOpenDeleteDialog
+}) => {
   return (
-    <div className="p-4 border-b border-border flex items-center justify-between">
-      <div>
-        <h2 className="text-lg font-medium">Note Editor</h2>
-        <p className="text-sm text-muted-foreground">
-          {currentNoteId ? 'Edit your note.' : 'Create a new note.'}
-        </p>
+    <div className="p-4 border-b border-border flex items-center justify-between gap-2">
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-medium truncate">
+            {title || "New Note"}
+          </h2>
+          
+          {savedStatus === 'saving' && (
+            <div className="flex items-center text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              <span className="text-xs">Saving...</span>
+            </div>
+          )}
+          
+          {savedStatus === 'saved' && (
+            <div className="flex items-center text-green-500">
+              <Check className="h-3 w-3 mr-1" />
+              <span className="text-xs">Saved</span>
+            </div>
+          )}
+          
+          {processingEmbeddings && (
+            <div className="flex items-center text-blue-500">
+              <Brain className="h-3 w-3 animate-pulse mr-1" />
+              <span className="text-xs">Processing embeddings</span>
+            </div>
+          )}
+        </div>
+        <div className="text-sm text-muted-foreground flex items-center">
+          <Folder className="h-3 w-3 inline mr-1" />
+          <span>{folderName}</span>
+        </div>
       </div>
       
       <div className="flex items-center gap-2">
-        <button
+        <Button
+          variant="outline"
+          size="icon"
           onClick={onOpenFolderSelector}
-          className="px-3 py-1.5 rounded-lg flex items-center gap-1.5 bg-primary/10 text-primary hover:bg-primary/20 button-hover-effect focus-ring"
+          title="Change folder"
         >
-          <FolderOpen className="w-4 h-4" />
-          <span>{folderName || 'Notes'}</span>
-        </button>
-        
-        <button
+          <Folder className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onNewNote}
+          title="New note"
+        >
+          <FilePlus className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant={savedStatus === 'unsaved' ? "default" : "outline"}
+          size="sm"
+          className="min-w-20"
           onClick={onSave}
-          disabled={savedStatus === 'saving' || (!title)}
-          className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 focus-ring ${
-            savedStatus === 'saving' || (!title)
-              ? 'bg-muted text-muted-foreground cursor-not-allowed'
-              : savedStatus === 'saved'
-              ? 'bg-green-600/20 text-green-600 hover:bg-green-600/30'
-              : 'bg-primary/10 text-primary hover:bg-primary/20 button-hover-effect'
-          }`}
+          disabled={savedStatus === 'saving'}
         >
-          <Save className="w-4 h-4" />
-          <span>{getSaveButtonText()}</span>
-        </button>
-        
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="p-2 rounded-lg button-hover-effect focus-ring">
-              <MoreVertical className="w-5 h-5" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={onNewNote}>
-              New Note
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              onClick={onOpenDeleteDialog}
-              className="text-destructive"
-              disabled={!currentNoteId}
-            >
-              Delete Note
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          {savedStatus === 'saving' ? (
+            <>
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              Saving
+            </>
+          ) : (
+            <>
+              <Save className="mr-1 h-4 w-4" />
+              Save
+            </>
+          )}
+        </Button>
+
+        {currentNoteId && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onOpenDeleteDialog}
+            title="Delete note"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -1,10 +1,8 @@
-
-import { useRef } from 'react';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import MarkdownToolbar from '../markdown/MarkdownToolbar';
-import MarkdownPreview from '../markdown/MarkdownPreview';
-import { insertMarkdown, insertLineMarkdown, handleMarkdownShortcuts } from '@/utils/markdownUtils';
+import { useState, useEffect, useRef } from 'react';
+import { Tab } from '@headlessui/react';
+import { Eye, Code, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import MarkdownRenderer from '@/components/markdown/MarkdownRenderer';
 
 interface EditorContentProps {
   title: string;
@@ -21,116 +19,107 @@ const EditorContent = ({
   isPreviewMode,
   onTitleChange,
   onContentChange,
-  togglePreviewMode,
+  togglePreviewMode
 }: EditorContentProps) => {
-  const contentRef = useRef<HTMLTextAreaElement>(null);
-
-  const handleMarkdownAction = (action: string, options?: any) => {
-    if (!contentRef.current || isPreviewMode) return;
-    
-    const textarea = contentRef.current;
-    
-    switch (action) {
-      case 'bold':
-        insertMarkdown(textarea, '**', '**', 'bold text');
-        break;
-      case 'italic':
-        insertMarkdown(textarea, '*', '*', 'italic text');
-        break;
-      case 'strikethrough':
-        insertMarkdown(textarea, '~~', '~~', 'strikethrough text');
-        break;
-      case 'heading1':
-        insertLineMarkdown(textarea, '# ', 'Heading 1');
-        break;
-      case 'heading2':
-        insertLineMarkdown(textarea, '## ', 'Heading 2');
-        break;
-      case 'heading3':
-        insertLineMarkdown(textarea, '### ', 'Heading 3');
-        break;
-      case 'bulletList':
-        insertLineMarkdown(textarea, '- ', 'List item');
-        break;
-      case 'orderedList':
-        insertLineMarkdown(textarea, '1. ', 'List item');
-        break;
-      case 'code':
-        if (textarea.value.substring(textarea.selectionStart, textarea.selectionEnd).includes('\n')) {
-          insertMarkdown(textarea, '```\n', '\n```', 'code block');
-        } else {
-          insertMarkdown(textarea, '`', '`', 'inline code');
-        }
-        break;
-      case 'quote':
-        insertLineMarkdown(textarea, '> ', 'Blockquote');
-        break;
-      case 'link':
-        insertMarkdown(textarea, '[', '](https://example.com)', 'link text');
-        break;
-      case 'image':
-        insertMarkdown(textarea, '![', '](https://example.com/image.jpg)', 'alt text');
-        break;
-      default:
-        break;
-    }
-    
-    // Update content state after modification
-    if (textarea) {
-      onContentChange(textarea.value);
-    }
-  };
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const [hasFocus, setHasFocus] = useState(false);
   
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (contentRef.current) {
-      if (handleMarkdownShortcuts(e, contentRef.current)) {
-        // Update content state after shortcut
-        onContentChange(contentRef.current.value);
+  // Focus title if empty
+  useEffect(() => {
+    if (!title && editorRef.current) {
+      editorRef.current.focus();
+    }
+  }, [title]);
+  
+  // Set content height to fill available space
+  useEffect(() => {
+    const adjustHeight = () => {
+      if (editorRef.current) {
+        // Reset height to recalculate
+        editorRef.current.style.height = 'auto';
+        
+        // Calculate available height (subtract title input and toolbar)
+        const container = editorRef.current.parentElement;
+        if (container) {
+          const availableHeight = container.clientHeight - 120; // Adjust based on your layout
+          editorRef.current.style.height = `${Math.max(100, availableHeight)}px`;
+        }
       }
-    }
+    };
     
-    // Save on Ctrl+S or Command+S
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      // We don't call onSave here because we can't access it directly
-      // The parent component handles this through the keydown event
-    }
-  };
-
+    // Initial adjustment
+    adjustHeight();
+    
+    // Adjust on window resize
+    window.addEventListener('resize', adjustHeight);
+    
+    return () => {
+      window.removeEventListener('resize', adjustHeight);
+    };
+  }, [isPreviewMode]);
+  
   return (
-    <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto scrollbar-thin">
-      {/* Title Input */}
-      <div className="glass rounded-lg">
-        <Input
+    <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="px-4 pt-4 pb-2">
+        <input
+          type="text"
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
-          placeholder="Note title"
-          className="border-none glass bg-transparent focus-visible:ring-0 text-lg font-medium"
+          placeholder="Note title..."
+          className="w-full text-xl font-medium bg-transparent border-none focus:outline-none focus:ring-0 mb-2"
         />
       </div>
       
-      {/* Markdown Toolbar */}
-      <MarkdownToolbar
-        onActionClick={handleMarkdownAction}
-        isPreviewMode={isPreviewMode}
-        togglePreview={togglePreviewMode}
-        className="sticky top-0 z-10"
-      />
+      <div className="px-4 pb-2 flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Button
+            variant={isPreviewMode ? "default" : "outline"}
+            size="sm"
+            onClick={togglePreviewMode}
+            className="h-8"
+          >
+            {isPreviewMode ? (
+              <>
+                <Code className="mr-1 h-4 w-4" />
+                Edit
+              </>
+            ) : (
+              <>
+                <Eye className="mr-1 h-4 w-4" />
+                Preview
+              </>
+            )}
+          </Button>
+        </div>
+        
+        <div className="text-xs text-muted-foreground">
+          {content.length} characters
+        </div>
+      </div>
       
-      {/* Editor / Preview Area */}
-      <div className="flex-1 glass rounded-lg overflow-hidden flex flex-col">
+      <div className="flex-1 px-4 overflow-hidden">
         {isPreviewMode ? (
-          <div className="p-4 overflow-y-auto h-full scrollbar-thin">
-            <MarkdownPreview content={content} />
+          <div className="h-full overflow-auto scrollbar-thin py-2">
+            {content ? (
+              <MarkdownRenderer content={content} className="prose-sm" />
+            ) : (
+              <div className="text-muted-foreground italic">
+                Nothing to preview. Start writing to see content.
+              </div>
+            )}
           </div>
         ) : (
-          <Textarea
-            ref={contentRef}
+          <textarea
+            ref={editorRef}
             value={content}
             onChange={(e) => onContentChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Start writing in Markdown..."
-            className="w-full h-full bg-transparent border-none p-4 resize-none focus-visible:ring-0 focus:outline-none scrollbar-thin font-mono"
+            onFocus={() => setHasFocus(true)}
+            onBlur={() => setHasFocus(false)}
+            placeholder="Write your note content here..."
+            className={`w-full h-full bg-transparent resize-none border-none 
+              focus:outline-none focus:ring-0 scrollbar-thin
+              ${hasFocus ? 'placeholder-muted-foreground/50' : 'placeholder-muted-foreground/70'}
+            `}
           />
         )}
       </div>
