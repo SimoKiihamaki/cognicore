@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { useNotes } from './useNotes';
 import { Note } from '@/lib/types';
-import { initializeEmbeddingService, getEmbeddingService, cosineSimilarity, findSimilarNotes, EmbeddingResult } from '@/utils/embeddings';
+import { initializeEmbeddingService, getEmbeddingService, findSimilarNotes, EmbeddingResult } from '@/utils/embeddings';
 
 interface UseEmbeddingsOptions {
   autoEmbed?: boolean;
@@ -26,8 +26,14 @@ export function useEmbeddings(options: UseEmbeddingsOptions = {}) {
   const [isEmbeddingInitialized, setIsEmbeddingInitialized] = useState(false);
   const [isEmbeddingInitializing, setIsEmbeddingInitializing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [modelName, setModelName] = useState('');
   const [embeddingQueue, setEmbeddingQueue] = useState<string[]>([]);
+  const [progress, setProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [totalItems, setTotalItems] = useState(0);
+  const [processedItems, setProcessedItems] = useState(0);
+  const [serviceError, setServiceError] = useState<string | null>(null);
   
   // Initialize embedding service
   useEffect(() => {
@@ -38,9 +44,11 @@ export function useEmbeddings(options: UseEmbeddingsOptions = {}) {
       try {
         await initializeEmbeddingService();
         setIsEmbeddingInitialized(true);
+        setStatusMessage('Embedding service initialized successfully');
         console.log('Embedding service initialized successfully');
       } catch (error) {
         console.error('Failed to initialize embedding service:', error);
+        setServiceError(error instanceof Error ? error.message : 'Unknown error');
         toast({
           title: 'Embedding Error',
           description: 'Failed to initialize embedding service. Some features may be limited.',
@@ -157,6 +165,11 @@ export function useEmbeddings(options: UseEmbeddingsOptions = {}) {
     }
   }, [isEmbeddingInitialized, notes, updateNote, toast]);
   
+  // Generate embeddings for a specific note
+  const generateNoteEmbeddings = useCallback(async (noteId: string): Promise<void> => {
+    await generateEmbeddingsForNotes([noteId]);
+  }, [generateEmbeddingsForNotes]);
+  
   // Find similar notes based on a query
   const findSimilar = useCallback(async (
     query: string,
@@ -201,6 +214,65 @@ export function useEmbeddings(options: UseEmbeddingsOptions = {}) {
     }
   }, [isEmbeddingInitialized, generateEmbedding, notes, similarityThreshold, maxResults]);
   
+  // Process all content (notes, files, etc.)
+  const processAllContent = useCallback(async (): Promise<void> => {
+    if (!isEmbeddingInitialized) {
+      console.warn('Embedding service not initialized');
+      return;
+    }
+    
+    setIsProcessing(true);
+    setProgress(0);
+    setStatusMessage('Processing content...');
+    setTotalItems(notes.length);
+    setProcessedItems(0);
+    
+    try {
+      // Process all notes first
+      await generateEmbeddingsForNotes();
+      
+      // Update progress
+      setProgress(100);
+      setProcessedItems(notes.length);
+      setStatusMessage('Content processing complete');
+    } catch (error) {
+      console.error('Error processing content:', error);
+      setServiceError(error instanceof Error ? error.message : 'Unknown error');
+      setStatusMessage('Error processing content');
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [isEmbeddingInitialized, notes, generateEmbeddingsForNotes]);
+  
+  // Change the embedding model
+  const changeEmbeddingModel = useCallback(async (newModelName: string): Promise<boolean> => {
+    if (newModelName === modelName) return true;
+    
+    setIsEmbeddingInitializing(true);
+    setStatusMessage(`Changing model to ${newModelName}...`);
+    
+    try {
+      // Reset existing embedding service
+      setIsEmbeddingInitialized(false);
+      
+      // Initialize with new model
+      await initializeEmbeddingService();
+      
+      setModelName(newModelName);
+      setIsEmbeddingInitialized(true);
+      setStatusMessage(`Model changed to ${newModelName}`);
+      
+      return true;
+    } catch (error) {
+      console.error('Error changing embedding model:', error);
+      setServiceError(error instanceof Error ? error.message : 'Unknown error');
+      setStatusMessage('Error changing model');
+      return false;
+    } finally {
+      setIsEmbeddingInitializing(false);
+    }
+  }, [modelName]);
+  
   return {
     isEmbeddingInitialized,
     isEmbeddingInitializing,
@@ -208,7 +280,20 @@ export function useEmbeddings(options: UseEmbeddingsOptions = {}) {
     generateEmbedding,
     generateEmbeddings,
     generateEmbeddingsForNotes,
+    generateNoteEmbeddings,
     findSimilar,
-    modelName
+    modelName,
+    // Added properties
+    isProcessing,
+    processAllContent,
+    progress,
+    statusMessage,
+    totalItems,
+    processedItems,
+    serviceError,
+    changeEmbeddingModel,
+    // Alias properties for backward compatibility
+    isInitialized: isEmbeddingInitialized,
+    isInitializing: isEmbeddingInitializing
   };
 }

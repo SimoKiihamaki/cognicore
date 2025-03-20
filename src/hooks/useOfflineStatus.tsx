@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 
 interface OfflineStatusHook {
@@ -7,6 +8,9 @@ interface OfflineStatusHook {
   hasAppUpdate: boolean;
   updateServiceWorker: () => void;
   enableOfflineMode: (enabled: boolean) => void;
+  isOffline: boolean;
+  isOfflineMode: boolean;
+  toggleOfflineMode: () => void;
 }
 
 /**
@@ -21,6 +25,12 @@ export function useOfflineStatus(): OfflineStatusHook {
   const [hasAppUpdate, setHasAppUpdate] = useState<boolean>(false);
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
+  // Calculate isOffline based on online status
+  const isOffline = !isOnline;
+  
+  // isOfflineMode is an alias to isOfflineModeEnabled
+  const isOfflineMode = isOfflineModeEnabled;
+
   // Check if service worker is supported
   const isSWSupported = 'serviceWorker' in navigator;
 
@@ -29,6 +39,11 @@ export function useOfflineStatus(): OfflineStatusHook {
     setIsOfflineModeEnabled(enabled);
     localStorage.setItem('cognicore-offline-mode', enabled ? 'true' : 'false');
   }, []);
+  
+  // Toggle offline mode
+  const toggleOfflineMode = useCallback(() => {
+    enableOfflineMode(!isOfflineModeEnabled);
+  }, [enableOfflineMode, isOfflineModeEnabled]);
 
   // Register service worker
   useEffect(() => {
@@ -98,6 +113,9 @@ export function useOfflineStatus(): OfflineStatusHook {
     isOfflineModeEnabled,
     hasAppUpdate,
     updateServiceWorker,
-    enableOfflineMode
+    enableOfflineMode,
+    isOffline,
+    isOfflineMode,
+    toggleOfflineMode
   };
 }

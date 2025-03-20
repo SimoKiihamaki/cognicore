@@ -6,6 +6,31 @@
 import { v4 as uuidv4 } from 'uuid';
 import { extractTextFromFile } from '@/utils/fileUtils';
 
+// File types constants
+export const TEXT_FILE_EXTENSIONS = [
+  'txt', 'md', 'markdown', 'html', 'htm', 'json', 'csv',
+  'js', 'ts', 'jsx', 'tsx', 'css', 'scss'
+];
+
+export const EXCLUDED_DIRECTORIES = [
+  'node_modules', '.git', '.vscode', 'dist', 'build',
+  'coverage', '.next', 'out', 'target'
+];
+
+// Monitoring status type
+export interface MonitoringStatus {
+  folderPath: string;
+  lastScanTime: Date | null;
+  fileCount: number;
+  errorCount: number;
+  lastError: string | null;
+}
+
+// Check if file system access is supported
+export function isFileAccessSupported(): boolean {
+  return 'showDirectoryPicker' in window;
+}
+
 // Request permission to access a directory
 export async function requestDirectoryAccess() {
   try {
@@ -15,6 +40,96 @@ export async function requestDirectoryAccess() {
     console.error('Error accessing directory:', error);
     return null;
   }
+}
+
+// Alias for requestDirectoryAccess
+export const requestFolderAccess = requestDirectoryAccess;
+
+// Scan directory and get files
+export async function scanDirectory(
+  directoryHandle: FileSystemDirectoryHandle, 
+  basePath: string
+): Promise<any[]> {
+  const files = [];
+  
+  try {
+    // Use the FileMonitor class to scan
+    const monitor = new FileMonitor();
+    files.push(...await monitor.listFiles(directoryHandle, basePath));
+    
+    // Process files to match IndexedFile structure
+    return files.map(file => ({
+      id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      filename: file.name,
+      filepath: file.path,
+      filetype: file.name.split('.').pop()?.toLowerCase() || '',
+      lastModified: new Date(),
+      size: 0 // Would be set when getting actual file
+    }));
+  } catch (error) {
+    console.error(`Error scanning directory ${basePath}:`, error);
+    return [];
+  }
+}
+
+// Monitor storage for tracked folders
+const monitoredFolders = new Map<string, { handle: FileSystemDirectoryHandle, callbacks: any }>();
+
+// Add a folder to the monitor list
+export function addMonitoredFolder(path: string, handle: FileSystemDirectoryHandle): void {
+  monitoredFolders.set(path, { handle, callbacks: {} });
+}
+
+// Remove a folder from the monitor list
+export function removeMonitoredFolder(path: string): void {
+  monitoredFolders.delete(path);
+}
+
+// Start monitoring a folder
+export function startMonitoringFolder(
+  path: string,
+  onChange: (files: any[], eventType: 'initial' | 'changed' | 'deleted') => void,
+  options: any = {}
+): void {
+  const folderInfo = monitoredFolders.get(path);
+  if (!folderInfo) {
+    console.error(`Cannot start monitoring ${path} - not in monitored folders`);
+    return;
+  }
+  
+  folderInfo.callbacks.onChange = onChange;
+  folderInfo.callbacks.options = options;
+  
+  // Would implement actual monitoring logic here
+  console.log(`Started monitoring folder: ${path}`);
+  
+  // Trigger initial scan
+  setTimeout(() => {
+    onChange([], 'initial');
+  }, 1000);
+}
+
+// Stop monitoring a folder
+export function stopMonitoringFolder(path: string): void {
+  const folderInfo = monitoredFolders.get(path);
+  if (!folderInfo) {
+    console.error(`Cannot stop monitoring ${path} - not in monitored folders`);
+    return;
+  }
+  
+  // Would implement actual monitoring cleanup here
+  console.log(`Stopped monitoring folder: ${path}`);
+}
+
+// Get monitoring status
+export function getMonitoringStatus(): MonitoringStatus[] {
+  return Array.from(monitoredFolders.entries()).map(([path, _]) => ({
+    folderPath: path,
+    lastScanTime: new Date(),
+    fileCount: 0,
+    errorCount: 0,
+    lastError: null
+  }));
 }
 
 // Types for file monitoring
@@ -208,7 +323,7 @@ export class FileMonitor {
   }
   
   // Scan a specific folder
-  async scanFolder(folder: MonitoredFolder) {
+  public async scanFolder(folder: MonitoredFolder) {
     try {
       const files = await this.listFiles(folder.handle, folder.path);
       
@@ -225,7 +340,7 @@ export class FileMonitor {
   }
   
   // List all files in a directory recursively
-  async listFiles(dirHandle: FileSystemDirectoryHandle, basePath: string) {
+  public async listFiles(dirHandle: FileSystemDirectoryHandle, basePath: string) {
     const files: { path: string; name: string; handle: FileSystemFileHandle }[] = [];
     
     try {
@@ -402,12 +517,7 @@ export class FileMonitor {
   
   // Check if file type is supported for content extraction
   isSupportedFileType(filetype: string) {
-    const supportedTypes = [
-      'txt', 'md', 'markdown', 'html', 'htm', 'json', 'csv',
-      'js', 'ts', 'jsx', 'tsx', 'css', 'scss'
-    ];
-    
-    return supportedTypes.includes(filetype.toLowerCase());
+    return TEXT_FILE_EXTENSIONS.includes(filetype.toLowerCase());
   }
   
   // Update monitoring statistics
@@ -426,6 +536,85 @@ export class FileMonitor {
     if (this.onStatsUpdated) {
       this.onStatsUpdated({ ...this.stats });
     }
+  }
+  
+  // Check for files that have been deleted
+  checkForDeletedFiles(folder: MonitoredFolder, currentFiles: { path: string }[]) {
+    // Get all files that should be in this folder
+    const folderFiles = this.indexedFiles.filter(
+      f => f.filepath.startsWith(folder.path) && !f.isDeleted
+    );
+    
+    // Get current file paths
+    const currentPaths = new Set(currentFiles.map(f => f.path));
+    
+    // Find files that no longer exist
+    const deletedFiles = folderFiles.filter(f => !currentPaths.has(f.filepath));
+    
+    // Mark files as deleted
+    deletedFiles.forEach(file => {
+      this.updateIndexedFile({
+        id: file.id,
+        filename: file.filename,
+        filepath: file.filepath,
+        filetype: file.filetype,
+        lastModified: file.lastModified,
+        size: file.size,
+        isDeleted: true
+      });
+      
+      if (this.onFileDeleted) {
+        this.onFileDeleted(file.id);
+      }
+    });
+  }
+  
+  // Add a new indexed file
+  addIndexedFile(file: IndexedFileInfo) {
+    this.indexedFiles.push(file);
+    this.updateStats();
+    
+    if (this.onFileIndexed) {
+      this.onFileIndexed(file);
+    }
+    
+    // Debounce content processing for performance
+    setTimeout(() => {
+      this.processFileContent(file);
+    }, 500);
+  }
+  
+  // Update an existing indexed file
+  updateIndexedFile(file: Partial<IndexedFileInfo> & { id: string }) {
+    const index = this.indexedFiles.findIndex(f => f.id === file.id);
+    
+    if (index !== -1) {
+      this.indexedFiles[index] = {
+        ...this.indexedFiles[index],
+        ...file
+      };
+      
+      this.updateStats();
+      
+      if (this.onFileUpdated) {
+        this.onFileUpdated(this.indexedFiles[index]);
+      }
+      
+      // Debounce content processing for performance
+      if (!file.isDeleted) {
+        setTimeout(() => {
+          this.processFileContent(this.indexedFiles[index]);
+        }, 500);
+      }
+    }
+  }
+  
+  // Process file content (extract metadata, generate embeddings, etc.)
+  processFileContent(file: IndexedFileInfo) {
+    // This would be implemented to extract metadata, generate embeddings, etc.
+    // For now, just update stats
+    this.stats.filesProcessed++;
+    this.updateStats();
   }
   
   // Clean up resources

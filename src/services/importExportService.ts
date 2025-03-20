@@ -1,67 +1,82 @@
 
+/**
+ * Import and Export Service
+ * Handles exporting and importing data for CogniCore
+ */
+
 import { Note, Folder, IndexedFile } from '@/lib/types';
 import JSZip from 'jszip';
 
-// Export Package type definition
+// Type definitions for exported data
 export interface ExportPackage {
-  metadata: {
-    exportDate: string;
-    version: string;
-    description?: string;
-    creator?: string;
-    appVersion?: string;
-    noteCount?: number;
-    folderCount?: number;
-    fileCount?: number;
-    hasSettings?: boolean;
-  };
+  type: 'cognicore-export';
+  version: string;
+  timestamp: string;
+  creator?: string;
+  description?: string;
   data: {
-    notes: Note[];
-    indexedFiles: IndexedFile[];
-    folders: Folder[];
-    settings: any;
+    notes?: Note[];
+    folders?: Folder[];
+    indexedFiles?: IndexedFile[];
+    settings?: Record<string, any>;
+  };
+  metadata?: Record<string, any>;
+}
+
+export interface ImportOptions {
+  importNotes: boolean;
+  importFolders: boolean;
+  importFiles: boolean;
+  importSettings: boolean;
+  overwriteExisting: boolean;
+}
+
+export interface MergeResult {
+  notes: Note[];
+  folders: Folder[];
+  indexedFiles: IndexedFile[];
+  settings: Record<string, any> | null;
+  conflicts: {
+    noteConflicts: string[];
+    folderConflicts: string[];
+    fileConflicts: string[];
   };
 }
 
 /**
- * Generate an export file and return its URL
+ * Export data to a JSON file
  */
 export function exportData(
-  notes: Note[], 
-  files: IndexedFile[], 
-  folders: Folder[], 
-  settings: any, 
-  metadata: any = {}
+  notes: Note[],
+  files: IndexedFile[],
+  folders: Folder[],
+  settings: Record<string, any> = {},
+  metadata: Record<string, any> = {}
 ): string {
-  // Create a package object
+  // Create the export package
   const exportPackage: ExportPackage = {
-    metadata: {
-      ...metadata,
-      exportDate: new Date().toISOString(),
-      version: '1.0.0',
-      noteCount: notes.length,
-      folderCount: folders.length,
-      fileCount: files.length,
-      hasSettings: !!settings && Object.keys(settings).length > 0
-    },
+    type: 'cognicore-export',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
     data: {
-      notes,
+      notes: notes,
+      folders: folders,
       indexedFiles: files,
-      folders,
-      settings
-    }
+      settings: settings
+    },
+    metadata: metadata
   };
   
-  // Convert to JSON
+  // Convert to JSON and create a blob
   const json = JSON.stringify(exportPackage, null, 2);
-  
-  // Create a blob and URL
   const blob = new Blob([json], { type: 'application/json' });
+  
+  // Return the blob URL
   return URL.createObjectURL(blob);
 }
 
 /**
- * Trigger download of an export file
+ * Download the exported file
  */
 export function downloadExport(blobUrl: string, filename: string): void {
   const a = document.createElement('a');
@@ -80,60 +95,49 @@ export function downloadExport(blobUrl: string, filename: string): void {
 /**
  * Import data from a file
  */
-export async function importFromFile(file: File, options?: any): Promise<ExportPackage> {
-  try {
-    // Check file extension
-    const fileExt = file.name.split('.').pop()?.toLowerCase();
-    
-    if (fileExt === 'json') {
-      // Parse JSON file
-      const text = await file.text();
+export async function importFromFile(file: File): Promise<ExportPackage> {
+  if (file.name.endsWith('.json')) {
+    // Handle JSON import
+    const text = await file.text();
+    try {
       const data = JSON.parse(text);
-      return validateImportPackage(data) ? data : Promise.reject('Invalid import format');
-    } else if (fileExt === 'zip') {
-      // Unzip and parse archive
-      const zip = new JSZip();
-      const contents = await zip.loadAsync(file);
       
-      // Look for manifest.json or main export file
-      let mainFile = contents.file('manifest.json') || contents.file('export.json');
-      
-      if (!mainFile) {
-        // Look for any JSON file
-        const jsonFiles = Object.keys(contents.files).filter(name => name.endsWith('.json'));
-        if (jsonFiles.length > 0) {
-          mainFile = contents.file(jsonFiles[0]);
-        }
+      // Validate that it's a CogniCore export
+      if (data.type !== 'cognicore-export') {
+        throw new Error('Not a valid CogniCore export file');
       }
       
-      if (mainFile) {
-        const text = await mainFile.async('string');
-        const data = JSON.parse(text);
-        return validateImportPackage(data) ? data : Promise.reject('Invalid import format');
-      }
-      
-      return Promise.reject('No valid export data found in ZIP file');
-    } else {
-      return Promise.reject(`Unsupported file format: ${fileExt}`);
+      return data as ExportPackage;
+    } catch (error) {
+      throw new Error(`Failed to parse JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  } catch (error) {
-    console.error('Import error:', error);
-    return Promise.reject(error instanceof Error ? error.message : 'Failed to import file');
+  } else if (file.name.endsWith('.zip')) {
+    // Handle ZIP import
+    try {
+      const zip = new JSZip();
+      const zipContent = await zip.loadAsync(file);
+      
+      // Look for the main export file
+      const exportFile = zipContent.file('export.json');
+      if (!exportFile) {
+        throw new Error('No export.json found in the ZIP file');
+      }
+      
+      const exportJson = await exportFile.async('string');
+      const data = JSON.parse(exportJson);
+      
+      // Validate that it's a CogniCore export
+      if (data.type !== 'cognicore-export') {
+        throw new Error('Not a valid CogniCore export file');
+      }
+      
+      return data as ExportPackage;
+    } catch (error) {
+      throw new Error(`Failed to extract ZIP: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  } else {
+    throw new Error('Unsupported file format. Please use .json or .zip files.');
   }
-}
-
-/**
- * Validate that the imported data has the expected format
- */
-export function validateImportPackage(data: any): boolean {
-  // Basic validation that this is a CogniCore export
-  return (
-    data &&
-    typeof data === 'object' &&
-    data.metadata &&
-    data.data &&
-    Array.isArray(data.data.notes)
-  );
 }
 
 /**
@@ -144,92 +148,83 @@ export function mergeImportedData(
   existingNotes: Note[],
   existingFiles: IndexedFile[],
   existingFolders: Folder[],
-  options: {
-    importNotes: boolean;
-    importFolders: boolean;
-    importFiles: boolean;
-    importSettings: boolean;
-    overwriteExisting: boolean;
-  }
-) {
-  const result = {
+  options: ImportOptions
+): MergeResult {
+  const result: MergeResult = {
     notes: [...existingNotes],
-    indexedFiles: [...existingFiles],
     folders: [...existingFolders],
-    settings: null as any,
+    indexedFiles: [...existingFiles],
+    settings: null,
     conflicts: {
-      noteConflicts: [] as string[],
-      fileConflicts: [] as string[],
-      folderConflicts: [] as string[]
+      noteConflicts: [],
+      folderConflicts: [],
+      fileConflicts: []
     }
   };
   
-  // Process folders first (notes may reference folders)
+  // Merge folders
   if (options.importFolders && importedData.data.folders) {
-    for (const importedFolder of importedData.data.folders) {
-      const existingFolder = result.folders.find(f => f.id === importedFolder.id);
+    for (const folder of importedData.data.folders) {
+      const existingFolder = result.folders.find(f => f.id === folder.id);
       
       if (existingFolder) {
-        // This is a conflict
-        result.conflicts.folderConflicts.push(importedFolder.id);
+        result.conflicts.folderConflicts.push(folder.id);
         
         if (options.overwriteExisting) {
-          // Overwrite the existing folder
-          const index = result.folders.findIndex(f => f.id === importedFolder.id);
-          result.folders[index] = importedFolder;
+          // Replace existing folder
+          const index = result.folders.findIndex(f => f.id === folder.id);
+          result.folders[index] = { ...folder };
         }
       } else {
         // Add new folder
-        result.folders.push(importedFolder);
+        result.folders.push({ ...folder });
       }
     }
   }
   
-  // Process notes
+  // Merge notes
   if (options.importNotes && importedData.data.notes) {
-    for (const importedNote of importedData.data.notes) {
-      const existingNote = result.notes.find(n => n.id === importedNote.id);
+    for (const note of importedData.data.notes) {
+      const existingNote = result.notes.find(n => n.id === note.id);
       
       if (existingNote) {
-        // This is a conflict
-        result.conflicts.noteConflicts.push(importedNote.id);
+        result.conflicts.noteConflicts.push(note.id);
         
         if (options.overwriteExisting) {
-          // Overwrite the existing note
-          const index = result.notes.findIndex(n => n.id === importedNote.id);
-          result.notes[index] = importedNote;
+          // Replace existing note
+          const index = result.notes.findIndex(n => n.id === note.id);
+          result.notes[index] = { ...note };
         }
       } else {
         // Add new note
-        result.notes.push(importedNote);
+        result.notes.push({ ...note });
       }
     }
   }
   
-  // Process indexed files
+  // Merge files
   if (options.importFiles && importedData.data.indexedFiles) {
-    for (const importedFile of importedData.data.indexedFiles) {
-      const existingFile = result.indexedFiles.find(f => f.id === importedFile.id);
+    for (const file of importedData.data.indexedFiles) {
+      const existingFile = result.indexedFiles.find(f => f.id === file.id);
       
       if (existingFile) {
-        // This is a conflict
-        result.conflicts.fileConflicts.push(importedFile.id);
+        result.conflicts.fileConflicts.push(file.id);
         
         if (options.overwriteExisting) {
-          // Overwrite the existing file
-          const index = result.indexedFiles.findIndex(f => f.id === importedFile.id);
-          result.indexedFiles[index] = importedFile;
+          // Replace existing file
+          const index = result.indexedFiles.findIndex(f => f.id === file.id);
+          result.indexedFiles[index] = { ...file };
         }
       } else {
         // Add new file
-        result.indexedFiles.push(importedFile);
+        result.indexedFiles.push({ ...file });
       }
     }
   }
   
-  // Process settings
+  // Merge settings
   if (options.importSettings && importedData.data.settings) {
-    result.settings = importedData.data.settings;
+    result.settings = { ...importedData.data.settings };
   }
   
   return result;

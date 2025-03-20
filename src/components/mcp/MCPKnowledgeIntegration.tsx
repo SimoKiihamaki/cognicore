@@ -1,7 +1,4 @@
 
-// Fix the targetFolderId type issue by ensuring it's a string:
-
-// Update the setImportOptions function to use an explicit string for targetFolderId:
 import React, { useState } from 'react';
 
 // Placeholder for the MCPKnowledgeIntegration component
