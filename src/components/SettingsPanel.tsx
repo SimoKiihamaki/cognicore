@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Settings, User, Paintbrush, Database, FolderCog } from 'lucide-react';
 import {
@@ -8,11 +9,11 @@ import {
 } from "@/components/ui/accordion"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-import AppearanceSettings from './AppearanceSettings';
-import LMStudioSettings from './LMStudioSettings';
-import FolderMonitorSettings from './FolderMonitorSettings';
-import CacheSettings from './CacheSettings';
-import SafeThemeSettings from './SafeThemeSettings';
+import AppearanceSettings from '@/components/settings/AppearanceSettings';
+import LMStudioSettings from '@/components/settings/LMStudioSettings';
+import FolderMonitorSettings from '@/components/settings/FolderMonitorSettings';
+import CacheSettings from '@/components/settings/CacheSettings';
+import SafeThemeSettings from '@/components/settings/SafeThemeSettings';
 
 const SettingsPanel = () => {
   const [expandedPanels, setExpandedPanels] = useState<string[]>([]);

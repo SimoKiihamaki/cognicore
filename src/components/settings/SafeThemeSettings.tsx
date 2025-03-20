@@ -1,5 +1,7 @@
+
 import React from 'react';
 import SettingsHeader from './SettingsHeader';
+import { Paintbrush } from 'lucide-react';
 
 // This is a safe fallback component if ThemeSettings has errors
 const SafeThemeSettings = () => {
@@ -8,25 +10,7 @@ const SafeThemeSettings = () => {
       <SettingsHeader
         title="Theme Settings"
         description="Theme customization is temporarily unavailable"
-        icon={
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-5 w-5"
-          >
-            <path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"></path>
-            <path d="m18 20 3.5 3.5"></path>
-            <path d="m2.5 2.5 3.5 3.5"></path>
-            <path d="M7 8a5 5 0 1 0 10 0"></path>
-          </svg>
-        }
+        icon={<Paintbrush className="h-5 w-5" />}
       />
       
       <div className="rounded-md bg-yellow-500/10 p-6 border border-yellow-500/30">
