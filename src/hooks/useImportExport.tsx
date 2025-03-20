@@ -7,7 +7,8 @@ import {
   exportData, 
   downloadExport, 
   importFromFile,
-  mergeImportedData
+  mergeImportedData,
+  validateImportPackage
 } from '@/services/importExportService';
 import { Note, Folder, IndexedFile } from '@/lib/types';
 
@@ -68,10 +69,8 @@ export function useImportExport() {
     setIsExporting(true);
     
     try {
-      // Collect data to export
       const notesToExport = exportOptions.includeNotes ? notes : [];
       
-      // If we don't want to include embeddings, create a deep copy without embeddings
       const processedNotes = exportOptions.includeEmbeddings 
         ? notesToExport 
         : notesToExport.map(note => {
@@ -82,7 +81,6 @@ export function useImportExport() {
       const foldersToExport = exportOptions.includeFolders ? folderTree : [];
       const filesToExport = exportOptions.includeFiles ? indexedFiles : [];
       
-      // Get settings from localStorage
       const settingsToExport = exportOptions.includeSettings
         ? {
             lmStudio: JSON.parse(localStorage.getItem('lm-studio-config') || '{}'),
@@ -91,33 +89,24 @@ export function useImportExport() {
           }
         : {};
       
-      // Create additional metadata
       const metadata = {
         description: exportOptions.description,
         creator: 'CogniCore User',
-        appVersion: '1.0.0' // This should be fetched from an app constants file
+        appVersion: '1.0.0'
       };
       
-      // Generate export file based on format
       const exportFormat = exportOptions.format;
       let blobUrl;
       let filename = `cognicore-export-${new Date().toISOString().replace(/[:.]/g, '-')}`;
       
       if (exportFormat === 'json') {
-        // Use the import/export service to create a JSON export
         blobUrl = exportData(processedNotes, filesToExport, foldersToExport, settingsToExport, metadata);
         filename += '.json';
       } else if (exportFormat === 'markdown') {
-        // For markdown export, a different approach would be needed
-        // This is a simplified version for now
-        
         if (exportOptions.splitFiles) {
-          // This would generate a zip file with individual markdown files
-          // For simplicity, we're just using JSON for now
           blobUrl = exportData(processedNotes, [], [], {}, metadata);
           filename += '-markdown.zip';
         } else {
-          // Single markdown file with all notes
           const markdownContent = notesToExport.map(note => 
             `# ${note.title}\n\n${note.content}\n\n---\n\n`
           ).join('\n');
@@ -127,8 +116,6 @@ export function useImportExport() {
           filename += '.md';
         }
       } else if (exportFormat === 'csv') {
-        // Create CSV representation of notes
-        // This is a simplified version
         const headers = 'id,title,createdAt,updatedAt,folderId\n';
         const rows = notesToExport.map(note => 
           `"${note.id}","${note.title.replace(/"/g, '""')}","${note.createdAt}","${note.updatedAt}","${note.folderId}"`
@@ -141,7 +128,6 @@ export function useImportExport() {
         throw new Error(`Unsupported export format: ${exportFormat}`);
       }
       
-      // Trigger download
       if (blobUrl) {
         downloadExport(blobUrl, filename);
       }
@@ -178,22 +164,18 @@ export function useImportExport() {
     setImportProgress(0);
     
     try {
-      // Handle FileList or array of Files
       const fileArray = Array.from(files);
       
       if (fileArray.length === 0) {
         throw new Error('No files selected for import');
       }
       
-      // We'll focus on the first file for now
       const file = fileArray[0];
       setImportProgress(10);
       
-      // Import and parse the file
       const importedData = await importFromFile(file);
       setImportProgress(40);
       
-      // Merge imported data with existing data
       const mergeResult = mergeImportedData(
         importedData,
         notes,
@@ -204,43 +186,33 @@ export function useImportExport() {
       
       setImportProgress(70);
       
-      // Apply the merged data
-      
-      // Update folders first (notes may reference folders)
       if (options.importFolders && importedData.data.folders) {
         for (const folder of mergeResult.folders) {
           const existingFolder = folderTree.find(f => f.id === folder.id);
           
           if (!existingFolder) {
-            // Add new folder
             addFolder(folder);
           }
         }
       }
       
-      // Update notes
       if (options.importNotes && importedData.data.notes) {
         for (const note of mergeResult.notes) {
           const existingNote = notes.find(n => n.id === note.id);
           
           if (existingNote) {
-            // Update existing note
             updateNote(note.id, note);
           } else {
-            // Add new note
             addNote(note);
           }
         }
       }
       
-      // Update indexed files
       if (options.importFiles && importedData.data.indexedFiles) {
         setIndexedFiles(mergeResult.indexedFiles);
       }
       
-      // Update settings if needed
       if (options.importSettings && importedData.data.settings && mergeResult.settings) {
-        // Save each settings group to localStorage
         Object.entries(mergeResult.settings).forEach(([key, value]) => {
           if (value) {
             localStorage.setItem(`cognicore-${key}`, JSON.stringify(value));
@@ -250,7 +222,6 @@ export function useImportExport() {
       
       setImportProgress(100);
       
-      // Create result object
       const result: ImportResult = {
         success: true,
         importedItems: {
@@ -270,7 +241,6 @@ export function useImportExport() {
         warnings: []
       };
       
-      // Add warnings for conflicts
       if (mergeResult.conflicts.noteConflicts.length > 0) {
         result.warnings.push(`${mergeResult.conflicts.noteConflicts.length} note conflicts were ${options.overwriteExisting ? 'overwritten' : 'skipped'}.`);
       }
@@ -324,7 +294,8 @@ export function useImportExport() {
       includeFiles: true,
       includeSettings: true,
       includeEmbeddings,
-      format: 'json'
+      format: 'json',
+      description: 'Quick export of all data'
     });
   }, [exportItems]);
   
@@ -339,7 +310,8 @@ export function useImportExport() {
       includeSettings: false,
       includeEmbeddings: false,
       format: 'markdown',
-      splitFiles
+      splitFiles,
+      description: 'Notes exported as Markdown'
     });
   }, [exportItems]);
   
