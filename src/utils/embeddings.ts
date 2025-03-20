@@ -24,6 +24,14 @@ export async function initializeEmbeddingService(): Promise<void> {
 }
 
 /**
+ * Terminate the embedding service
+ */
+export function terminateEmbeddingService(): void {
+  console.log('Terminating embedding service...');
+  // Implementation would terminate the embedding worker
+}
+
+/**
  * Get the embedding service
  */
 export function getEmbeddingService() {
@@ -67,6 +75,9 @@ export function calculateCosineSimilarity(vec1: number[], vec2: number[]): numbe
   
   return dotProduct / (mag1 * mag2);
 }
+
+// Alias for calculateCosineSimilarity
+export const cosineSimilarity = calculateCosineSimilarity;
 
 /**
  * Find notes similar to the query

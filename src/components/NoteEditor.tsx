@@ -41,7 +41,10 @@ const NoteEditor = () => {
   } = useFolders();
 
   const {
-    generateNoteEmbeddings
+    generateEmbedding,
+    generateEmbeddings,
+    generateEmbeddingsForNotes,
+    isGenerating
   } = useEmbeddings();
   
   const similarNotes = useCallback(() => {
@@ -122,9 +125,9 @@ const NoteEditor = () => {
         try {
           const noteId = currentNoteId || getNote(title)?.id;
           if (noteId) {
-            const note = getNote(noteId);
-            if (note) {
-              await generateNoteEmbeddings(note);
+            const embedding = await generateEmbedding(content);
+            if (embedding && noteId) {
+              updateNote(noteId, { embeddings: embedding });
             }
           }
         } catch (error) {

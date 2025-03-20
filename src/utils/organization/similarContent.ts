@@ -2,7 +2,7 @@
 import { Note, IndexedFile, ContentItemType } from '@/lib/types';
 import { SimilarityResult } from './types';
 import { invalidateItemCache } from './types';
-import { cosineSimilarity } from '@/utils/embeddings';
+import { calculateCosineSimilarity } from '@/utils/embeddings';
 
 /**
  * Find similar content items based on embeddings
@@ -34,7 +34,7 @@ export function findSimilarContent(
     )
     // Calculate similarity between source and each item
     .map(item => {
-      const similarity = cosineSimilarity(
+      const similarity = calculateCosineSimilarity(
         sourceItem.embeddings as number[], 
         item.embeddings as number[]
       );
@@ -89,7 +89,7 @@ export function compareItems(
     return 0;
   }
 
-  return cosineSimilarity(item1.embeddings, item2.embeddings);
+  return calculateCosineSimilarity(item1.embeddings, item2.embeddings);
 }
 
 /**

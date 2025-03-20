@@ -355,6 +355,11 @@ export class FileMonitor {
             handle: handle as FileSystemFileHandle
           });
         } else if (handle.kind === 'directory') {
+          // Skip excluded directories
+          if (EXCLUDED_DIRECTORIES.includes(name)) {
+            continue;
+          }
+          
           // Recursively scan subdirectories
           const subFiles = await this.listFiles(handle as FileSystemDirectoryHandle, path);
           files.push(...subFiles);
@@ -536,85 +541,6 @@ export class FileMonitor {
     if (this.onStatsUpdated) {
       this.onStatsUpdated({ ...this.stats });
     }
-  }
-  
-  // Check for files that have been deleted
-  checkForDeletedFiles(folder: MonitoredFolder, currentFiles: { path: string }[]) {
-    // Get all files that should be in this folder
-    const folderFiles = this.indexedFiles.filter(
-      f => f.filepath.startsWith(folder.path) && !f.isDeleted
-    );
-    
-    // Get current file paths
-    const currentPaths = new Set(currentFiles.map(f => f.path));
-    
-    // Find files that no longer exist
-    const deletedFiles = folderFiles.filter(f => !currentPaths.has(f.filepath));
-    
-    // Mark files as deleted
-    deletedFiles.forEach(file => {
-      this.updateIndexedFile({
-        id: file.id,
-        filename: file.filename,
-        filepath: file.filepath,
-        filetype: file.filetype,
-        lastModified: file.lastModified,
-        size: file.size,
-        isDeleted: true
-      });
-      
-      if (this.onFileDeleted) {
-        this.onFileDeleted(file.id);
-      }
-    });
-  }
-  
-  // Add a new indexed file
-  addIndexedFile(file: IndexedFileInfo) {
-    this.indexedFiles.push(file);
-    this.updateStats();
-    
-    if (this.onFileIndexed) {
-      this.onFileIndexed(file);
-    }
-    
-    // Debounce content processing for performance
-    setTimeout(() => {
-      this.processFileContent(file);
-    }, 500);
-  }
-  
-  // Update an existing indexed file
-  updateIndexedFile(file: Partial<IndexedFileInfo> & { id: string }) {
-    const index = this.indexedFiles.findIndex(f => f.id === file.id);
-    
-    if (index !== -1) {
-      this.indexedFiles[index] = {
-        ...this.indexedFiles[index],
-        ...file
-      };
-      
-      this.updateStats();
-      
-      if (this.onFileUpdated) {
-        this.onFileUpdated(this.indexedFiles[index]);
-      }
-      
-      // Debounce content processing for performance
-      if (!file.isDeleted) {
-        setTimeout(() => {
-          this.processFileContent(this.indexedFiles[index]);
-        }, 500);
-      }
-    }
-  }
-  
-  // Process file content (extract metadata, generate embeddings, etc.)
-  processFileContent(file: IndexedFileInfo) {
-    // This would be implemented to extract metadata, generate embeddings, etc.
-    // For now, just update stats
-    this.stats.filesProcessed++;
-    this.updateStats();
   }
   
   // Clean up resources

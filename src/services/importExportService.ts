@@ -1,143 +1,122 @@
 
-/**
- * Import and Export Service
- * Handles exporting and importing data for CogniCore
- */
-
 import { Note, Folder, IndexedFile } from '@/lib/types';
-import JSZip from 'jszip';
 
-// Type definitions for exported data
+/**
+ * Export data structure
+ */
 export interface ExportPackage {
-  type: 'cognicore-export';
   version: string;
   timestamp: string;
-  creator?: string;
-  description?: string;
-  data: {
-    notes?: Note[];
-    folders?: Folder[];
-    indexedFiles?: IndexedFile[];
-    settings?: Record<string, any>;
+  metadata: {
+    noteCount: number;
+    folderCount: number;
+    fileCount: number;
+    hasSettings: boolean;
+    description?: string;
   };
-  metadata?: Record<string, any>;
-}
-
-export interface ImportOptions {
-  importNotes: boolean;
-  importFolders: boolean;
-  importFiles: boolean;
-  importSettings: boolean;
-  overwriteExisting: boolean;
-}
-
-export interface MergeResult {
-  notes: Note[];
-  folders: Folder[];
-  indexedFiles: IndexedFile[];
-  settings: Record<string, any> | null;
-  conflicts: {
-    noteConflicts: string[];
-    folderConflicts: string[];
-    fileConflicts: string[];
+  data: {
+    notes: Note[];
+    folders: Folder[];
+    indexedFiles: IndexedFile[];
+    settings?: Record<string, any>;
   };
 }
 
 /**
- * Export data to a JSON file
+ * Export data as a JSON blob
  */
 export function exportData(
   notes: Note[],
   files: IndexedFile[],
   folders: Folder[],
-  settings: Record<string, any> = {},
+  settings: Record<string, any>,
   metadata: Record<string, any> = {}
 ): string {
-  // Create the export package
+  // Create export package
   const exportPackage: ExportPackage = {
-    type: 'cognicore-export',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
-    data: {
-      notes: notes,
-      folders: folders,
-      indexedFiles: files,
-      settings: settings
+    metadata: {
+      noteCount: notes.length,
+      folderCount: folders.length,
+      fileCount: files.length,
+      hasSettings: Object.keys(settings).length > 0,
+      ...metadata
     },
-    metadata: metadata
+    data: {
+      notes,
+      folders,
+      indexedFiles: files,
+      settings
+    }
   };
   
-  // Convert to JSON and create a blob
-  const json = JSON.stringify(exportPackage, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
+  // Convert to JSON string
+  const jsonData = JSON.stringify(exportPackage, null, 2);
   
-  // Return the blob URL
+  // Create blob and return URL
+  const blob = new Blob([jsonData], { type: 'application/json' });
   return URL.createObjectURL(blob);
 }
 
 /**
- * Download the exported file
+ * Download export file
  */
 export function downloadExport(blobUrl: string, filename: string): void {
   const a = document.createElement('a');
   a.href = blobUrl;
   a.download = filename;
-  document.body.appendChild(a);
   a.click();
   
   // Clean up
   setTimeout(() => {
-    document.body.removeChild(a);
     URL.revokeObjectURL(blobUrl);
   }, 100);
 }
 
 /**
- * Import data from a file
+ * Import data from file
  */
 export async function importFromFile(file: File): Promise<ExportPackage> {
-  if (file.name.endsWith('.json')) {
-    // Handle JSON import
-    const text = await file.text();
-    try {
-      const data = JSON.parse(text);
-      
-      // Validate that it's a CogniCore export
-      if (data.type !== 'cognicore-export') {
-        throw new Error('Not a valid CogniCore export file');
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (event) => {
+      try {
+        if (!event.target?.result) {
+          reject(new Error('Failed to read file'));
+          return;
+        }
+        
+        const data = JSON.parse(event.target.result as string);
+        resolve(data);
+      } catch (error) {
+        reject(new Error('Invalid JSON format'));
       }
-      
-      return data as ExportPackage;
-    } catch (error) {
-      throw new Error(`Failed to parse JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  } else if (file.name.endsWith('.zip')) {
-    // Handle ZIP import
-    try {
-      const zip = new JSZip();
-      const zipContent = await zip.loadAsync(file);
-      
-      // Look for the main export file
-      const exportFile = zipContent.file('export.json');
-      if (!exportFile) {
-        throw new Error('No export.json found in the ZIP file');
-      }
-      
-      const exportJson = await exportFile.async('string');
-      const data = JSON.parse(exportJson);
-      
-      // Validate that it's a CogniCore export
-      if (data.type !== 'cognicore-export') {
-        throw new Error('Not a valid CogniCore export file');
-      }
-      
-      return data as ExportPackage;
-    } catch (error) {
-      throw new Error(`Failed to extract ZIP: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  } else {
-    throw new Error('Unsupported file format. Please use .json or .zip files.');
-  }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Error reading file'));
+    };
+    
+    reader.readAsText(file);
+  });
+}
+
+/**
+ * Validate import package
+ */
+export function validateImportPackage(data: any): data is ExportPackage {
+  if (!data) return false;
+  
+  // Check for required fields
+  if (!data.version || !data.data) return false;
+  
+  // Check for data structure
+  if (!data.data.notes || !Array.isArray(data.data.notes)) return false;
+  if (!data.data.folders || !Array.isArray(data.data.folders)) return false;
+  
+  return true;
 }
 
 /**
@@ -148,84 +127,76 @@ export function mergeImportedData(
   existingNotes: Note[],
   existingFiles: IndexedFile[],
   existingFolders: Folder[],
-  options: ImportOptions
-): MergeResult {
-  const result: MergeResult = {
+  options: {
+    importNotes: boolean;
+    importFolders: boolean;
+    importFiles: boolean;
+    importSettings: boolean;
+    overwriteExisting: boolean;
+  }
+) {
+  const results = {
     notes: [...existingNotes],
-    folders: [...existingFolders],
     indexedFiles: [...existingFiles],
-    settings: null,
+    folders: [...existingFolders],
+    settings: importedData.data.settings || {},
     conflicts: {
-      noteConflicts: [],
-      folderConflicts: [],
-      fileConflicts: []
+      noteConflicts: [] as string[],
+      fileConflicts: [] as string[],
+      folderConflicts: [] as string[]
     }
   };
   
-  // Merge folders
+  // Import folders
   if (options.importFolders && importedData.data.folders) {
     for (const folder of importedData.data.folders) {
-      const existingFolder = result.folders.find(f => f.id === folder.id);
+      const existingIndex = results.folders.findIndex(f => f.id === folder.id);
       
-      if (existingFolder) {
-        result.conflicts.folderConflicts.push(folder.id);
+      if (existingIndex !== -1) {
+        results.conflicts.folderConflicts.push(folder.id);
         
         if (options.overwriteExisting) {
-          // Replace existing folder
-          const index = result.folders.findIndex(f => f.id === folder.id);
-          result.folders[index] = { ...folder };
+          results.folders[existingIndex] = folder;
         }
       } else {
-        // Add new folder
-        result.folders.push({ ...folder });
+        results.folders.push(folder);
       }
     }
   }
   
-  // Merge notes
+  // Import notes
   if (options.importNotes && importedData.data.notes) {
     for (const note of importedData.data.notes) {
-      const existingNote = result.notes.find(n => n.id === note.id);
+      const existingIndex = results.notes.findIndex(n => n.id === note.id);
       
-      if (existingNote) {
-        result.conflicts.noteConflicts.push(note.id);
+      if (existingIndex !== -1) {
+        results.conflicts.noteConflicts.push(note.id);
         
         if (options.overwriteExisting) {
-          // Replace existing note
-          const index = result.notes.findIndex(n => n.id === note.id);
-          result.notes[index] = { ...note };
+          results.notes[existingIndex] = note;
         }
       } else {
-        // Add new note
-        result.notes.push({ ...note });
+        results.notes.push(note);
       }
     }
   }
   
-  // Merge files
+  // Import indexed files
   if (options.importFiles && importedData.data.indexedFiles) {
     for (const file of importedData.data.indexedFiles) {
-      const existingFile = result.indexedFiles.find(f => f.id === file.id);
+      const existingIndex = results.indexedFiles.findIndex(f => f.id === file.id);
       
-      if (existingFile) {
-        result.conflicts.fileConflicts.push(file.id);
+      if (existingIndex !== -1) {
+        results.conflicts.fileConflicts.push(file.id);
         
         if (options.overwriteExisting) {
-          // Replace existing file
-          const index = result.indexedFiles.findIndex(f => f.id === file.id);
-          result.indexedFiles[index] = { ...file };
+          results.indexedFiles[existingIndex] = file;
         }
       } else {
-        // Add new file
-        result.indexedFiles.push({ ...file });
+        results.indexedFiles.push(file);
       }
     }
   }
   
-  // Merge settings
-  if (options.importSettings && importedData.data.settings) {
-    result.settings = { ...importedData.data.settings };
-  }
-  
-  return result;
+  return results;
 }
