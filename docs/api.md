@@ -1,590 +1,407 @@
 # API Documentation
 
-## LM Studio Integration
+## LM Studio API
 
-### Configuration
+### Overview
+The LM Studio API provides integration with local AI models through LM Studio's server.
+
 ```typescript
 interface LMStudioConfig {
   baseUrl: string;
-  apiKey?: string;
+  apiKey: string;
   primaryModelName: string;
   secondaryModelName: string;
-  supportsVision?: boolean;
+  temperature: number;
+  maxTokens: number;
+  useVision: boolean;
 }
 
-interface MCPServer {
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
   id: string;
-  name: string;
-  url: string;
-  apiKey: string;
-  isActive: boolean;
-  requiresAuthentication?: boolean;
+  timestamp: number;
+  metadata?: {
+    model?: string;
+    images?: string[];
+  };
+}
+
+interface ChatResponse {
+  message: ChatMessage;
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
 }
 ```
 
-### API Endpoints
+### Endpoints
 
 #### Chat Completion
 ```typescript
 POST /v1/chat/completions
-Request:
+Content-Type: application/json
+
 {
-  messages: Array<{
-    role: 'system' | 'user' | 'assistant';
-    content: string;
-  }>;
-  model: string;
-  temperature?: number;
-  max_tokens?: number;
-  top_p?: number;
-  top_k?: number;
-  stream?: boolean;
+  "messages": ChatMessage[],
+  "model": string,
+  "temperature": number,
+  "max_tokens": number,
+  "stream": boolean
 }
 
-Response:
+Response: {
+  "message": ChatMessage,
+  "usage": {
+    "prompt_tokens": number,
+    "completion_tokens": number,
+    "total_tokens": number
+  }
+}
+```
+
+#### Vision
+```typescript
+POST /v1/vision
+Content-Type: multipart/form-data
+
 {
-  id: string;
-  choices: Array<{
-    message: {
-      role: string;
-      content: string;
-    };
-    finish_reason: string;
-  }>;
-  usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
+  "image": File,
+  "prompt": string,
+  "model": string,
+  "temperature": number,
+  "max_tokens": number
+}
+
+Response: {
+  "message": ChatMessage,
+  "usage": {
+    "prompt_tokens": number,
+    "completion_tokens": number,
+    "total_tokens": number
+  }
 }
 ```
 
 #### Model Information
 ```typescript
 GET /v1/models
-Response:
-{
-  data: Array<{
-    id: string;
-    object: string;
-    owned_by: string;
-    permission: Array<{
-      id: string;
-      object: string;
-      created: number;
-      allow_create_engine: boolean;
-      allow_sampling: boolean;
-      allow_logprobs: boolean;
-      allow_search_indices: boolean;
-      allow_view: boolean;
-      allow_fine_tuning: boolean;
-      organization: string;
-      group: string | null;
-      is_blocking: boolean;
-    }>;
-    root: string;
-    parent: string | null;
-  }>;
+
+Response: {
+  "models": [
+    {
+      "id": string,
+      "name": string,
+      "capabilities": string[],
+      "parameters": number,
+      "contextLength": number
+    }
+  ]
 }
 ```
 
-### Model Presets
+## MCP API
 
-#### Open Source Models
-```typescript
-const openSourceModelPresets = [
-  {
-    name: "Mixtral 8x7B Instruct v0.1",
-    modelName: "Mixtral-8x7B-Instruct-v0.1",
-    contextLength: 32768,
-    description: "Mistral AI's mixture-of-experts model with 8 experts",
-    category: "open",
-    tags: ["high-performance", "instruction-tuned", "mixture-of-experts"],
-    recommendedSettings: {
-      temperature: 0.7,
-      topP: 0.9,
-      maxTokens: 2048
-    }
-  },
-  {
-    name: "Dolphin 2.9 Mistral 7B",
-    modelName: "dolphin-2.9-mistral-7b",
-    contextLength: 8192,
-    description: "Dolphin fine-tuned version of Mistral 7B",
-    category: "open",
-    tags: ["conversational", "instruction-tuned", "fine-tuned"],
-    recommendedSettings: {
-      temperature: 0.7,
-      topP: 0.9,
-      maxTokens: 1024
-    }
-  }
-];
-```
-
-#### Proprietary Models
-```typescript
-const proprietaryModelPresets = [
-  {
-    name: "GPT-4",
-    modelName: "gpt-4",
-    contextLength: 128000,
-    description: "OpenAI's most advanced model",
-    category: "proprietary",
-    tags: ["high-performance", "high-quality"],
-    recommendedSettings: {
-      temperature: 0.7,
-      topP: 0.95,
-      maxTokens: 2048
-    }
-  },
-  {
-    name: "GPT-3.5 Turbo",
-    modelName: "gpt-3.5-turbo",
-    contextLength: 16384,
-    description: "OpenAI's efficient model",
-    category: "proprietary",
-    tags: ["efficient", "fast", "cost-effective"],
-    recommendedSettings: {
-      temperature: 0.7,
-      topP: 0.9,
-      maxTokens: 1024
-    }
-  }
-];
-```
-
-### Error Handling
+### Overview
+The Model Control Protocol (MCP) API enables communication with remote model servers.
 
 ```typescript
-enum LMStudioErrorType {
-  CONNECTION_ERROR = 'CONNECTION_ERROR',
-  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
-  INVALID_REQUEST = 'INVALID_REQUEST',
-  MODEL_ERROR = 'MODEL_ERROR',
-  RATE_LIMIT = 'RATE_LIMIT',
-  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
-}
-
-interface LMStudioError {
-  type: LMStudioErrorType;
-  message: string;
-  details?: any;
-}
-```
-
-### API Flow Diagrams
-
-#### Chat Flow
-```mermaid
-sequenceDiagram
-    participant UI
-    participant ChatInterface
-    participant LMStudioAPI
-    participant LMStudio
-    
-    UI->>ChatInterface: Send Message
-    ChatInterface->>LMStudioAPI: Prepare Request
-    LMStudioAPI->>LMStudio: Send Request
-    LMStudio-->>LMStudioAPI: Stream Response
-    LMStudioAPI-->>ChatInterface: Process Response
-    ChatInterface-->>UI: Update Chat
-```
-
-#### Model Selection Flow
-```mermaid
-sequenceDiagram
-    participant UI
-    participant Config
-    participant LMStudioAPI
-    participant Models
-    
-    UI->>Config: Update Model
-    Config->>LMStudioAPI: Validate Model
-    LMStudioAPI->>Models: Check Availability
-    Models-->>LMStudioAPI: Model Status
-    LMStudioAPI-->>Config: Update Config
-    Config-->>UI: Reflect Changes
-```
-
-### Security Considerations
-
-1. **API Key Management**
-   - Secure storage in localStorage
-   - Optional authentication
-   - Key validation on connection
-
-2. **Request Validation**
-   - Input sanitization
-   - Parameter validation
-   - Rate limiting support
-
-3. **Error Handling**
-   - Graceful degradation
-   - User feedback
-   - Retry mechanisms
-
-### Performance Optimization
-
-1. **Caching Strategy**
-   - Response caching
-   - Model info caching
-   - Config persistence
-
-2. **Connection Management**
-   - Connection pooling
-   - Keep-alive support
-   - Reconnection logic
-
-3. **Resource Usage**
-   - Stream processing
-   - Memory management
-   - Background processing
-
-## File System API
-
-### File System Access
-```typescript
-interface FileSystemHandle {
-  kind: 'file' | 'directory';
+interface MCPServer {
+  id: string;
   name: string;
-  getFile(): Promise<File>;
-  createWritable(): Promise<FileSystemWritableFileStream>;
+  url: string;
+  apiKey: string;
+  isActive: boolean;
+  requiresAuthentication: boolean;
 }
 
-interface FileSystemDirectoryHandle extends FileSystemHandle {
-  kind: 'directory';
-  getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<FileSystemDirectoryHandle>;
-  getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle>;
-  removeEntry(name: string): Promise<void>;
-  resolve(possibleDescendant: FileSystemHandle): Promise<string[] | null>;
+interface MCPRequest {
+  serverId: string;
+  endpoint: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  body?: any;
+  headers?: Record<string, string>;
+}
+
+interface MCPResponse<T> {
+  data: T;
+  status: number;
+  headers: Record<string, string>;
 }
 ```
 
-### File Operations
+### Endpoints
+
+#### Server Health
 ```typescript
-interface FileOperations {
-  readFile(handle: FileSystemFileHandle): Promise<string>;
-  writeFile(handle: FileSystemFileHandle, content: string): Promise<void>;
-  deleteFile(handle: FileSystemFileHandle): Promise<void>;
-  listDirectory(handle: FileSystemDirectoryHandle): Promise<FileSystemHandle[]>;
+GET /health
+Authorization: Bearer <apiKey>
+
+Response: {
+  "status": "healthy" | "degraded" | "unhealthy",
+  "message": string,
+  "timestamp": number,
+  "metrics": {
+    "requestsPerMinute": number,
+    "averageLatency": number,
+    "errorRate": number
+  }
 }
 ```
 
-## IndexedDB API
-
-### Database Operations
+#### Model Management
 ```typescript
-interface DatabaseOperations {
-  // Notes
-  createNote(note: Note): Promise<string>;
-  getNote(id: string): Promise<Note | null>;
-  updateNote(id: string, note: Partial<Note>): Promise<void>;
-  deleteNote(id: string): Promise<void>;
-  listNotes(folderId?: string): Promise<Note[]>;
-  
-  // Folders
-  createFolder(folder: Folder): Promise<string>;
-  getFolder(id: string): Promise<Folder | null>;
-  updateFolder(id: string, folder: Partial<Folder>): Promise<void>;
-  deleteFolder(id: string): Promise<void>;
-  listFolders(parentId?: string): Promise<Folder[]>;
-  
-  // Embeddings
-  createEmbedding(embedding: Embedding): Promise<string>;
-  getEmbedding(id: string): Promise<Embedding | null>;
-  getEmbeddingsByNote(noteId: string): Promise<Embedding[]>;
-  deleteEmbedding(id: string): Promise<void>;
-  
-  // Files
-  createFile(file: File): Promise<string>;
-  getFile(id: string): Promise<File | null>;
-  updateFile(id: string, file: Partial<File>): Promise<void>;
-  deleteFile(id: string): Promise<void>;
-  listFiles(path?: string): Promise<File[]>;
+GET /models
+Authorization: Bearer <apiKey>
+
+Response: {
+  "models": [
+    {
+      "id": string,
+      "name": string,
+      "status": "loaded" | "loading" | "unloaded",
+      "metadata": Record<string, any>
+    }
+  ]
 }
 ```
 
-## API Flow Diagrams
+## Embedding Service API
 
-### LM Studio Integration Flow
-```mermaid
-sequenceDiagram
-    participant UI
-    participant ChatInterface
-    participant LMStudioAPI
-    participant LMStudio
-    
-    UI->>ChatInterface: Send Message
-    ChatInterface->>LMStudioAPI: Prepare Request
-    LMStudioAPI->>LMStudio: Send Request
-    LMStudio-->>LMStudioAPI: Stream Response
-    LMStudioAPI-->>ChatInterface: Process Response
-    ChatInterface-->>UI: Update Chat
+### Overview
+Local embedding service for semantic search and similarity matching.
+
+```typescript
+interface EmbeddingRequest {
+  text: string;
+  model: string;
+  options?: {
+    normalize?: boolean;
+    pooling?: 'mean' | 'max' | 'min';
+    truncate?: number;
+  };
+}
+
+interface EmbeddingResponse {
+  embedding: number[];
+  metadata: {
+    model: string;
+    dimensions: number;
+    truncated: boolean;
+  };
+}
+
+interface SimilarityRequest {
+  query: string;
+  documents: string[];
+  threshold?: number;
+  topK?: number;
+}
+
+interface SimilarityResult {
+  document: string;
+  score: number;
+  index: number;
+}
 ```
 
-### File System Operations Flow
-```mermaid
-sequenceDiagram
-    participant UI
-    participant FileSystem
-    participant IndexedDB
-    participant FileMonitor
-    
-    UI->>FileSystem: Request Access
-    FileSystem-->>UI: Directory Handle
-    
-    UI->>FileSystem: Read File
-    FileSystem->>IndexedDB: Store File Info
-    FileSystem->>FileMonitor: Watch File
-    
-    FileMonitor->>UI: File Changed
-    UI->>FileSystem: Update File
-    FileSystem->>IndexedDB: Update File Info
+### Methods
+
+#### Generate Embedding
+```typescript
+POST /api/embeddings
+Content-Type: application/json
+
+{
+  "text": string,
+  "model": string,
+  "options": {
+    "normalize": boolean,
+    "pooling": "mean" | "max" | "min",
+    "truncate": number
+  }
+}
+
+Response: {
+  "embedding": number[],
+  "metadata": {
+    "model": string,
+    "dimensions": number,
+    "truncated": boolean
+  }
+}
 ```
 
-### Database Operations Flow
-```mermaid
-sequenceDiagram
-    participant UI
-    participant Service
-    participant IndexedDB
-    participant Cache
-    
-    UI->>Service: Request Data
-    Service->>Cache: Check Cache
-    alt Cache Hit
-        Cache-->>Service: Return Cached Data
-    else Cache Miss
-        Service->>IndexedDB: Query Data
-        IndexedDB-->>Service: Return Data
-        Service->>Cache: Update Cache
-    end
-    Service-->>UI: Return Data
+#### Batch Embedding
+```typescript
+POST /api/embeddings/batch
+Content-Type: application/json
+
+{
+  "texts": string[],
+  "model": string,
+  "options": {
+    "normalize": boolean,
+    "pooling": "mean" | "max" | "min",
+    "truncate": number
+  }
+}
+
+Response: {
+  "embeddings": Array<{
+    "embedding": number[],
+    "metadata": {
+      "model": string,
+      "dimensions": number,
+      "truncated": boolean
+    }
+  }>
+}
 ```
 
 ## Error Handling
 
-### API Error Types
+### Error Types
 ```typescript
-interface APIError {
-  code: string;
-  message: string;
-  details?: any;
+enum ErrorType {
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  SERVER_ERROR = 'SERVER_ERROR',
+  MODEL_ERROR = 'MODEL_ERROR',
+  RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR'
 }
 
-enum ErrorCodes {
-  // LM Studio Errors
-  LM_STUDIO_CONNECTION_ERROR = 'LM_STUDIO_CONNECTION_ERROR',
-  LM_STUDIO_TIMEOUT = 'LM_STUDIO_TIMEOUT',
-  LM_STUDIO_RATE_LIMIT = 'LM_STUDIO_RATE_LIMIT',
-  
-  // File System Errors
-  FILE_SYSTEM_ACCESS_DENIED = 'FILE_SYSTEM_ACCESS_DENIED',
-  FILE_SYSTEM_NOT_SUPPORTED = 'FILE_SYSTEM_NOT_SUPPORTED',
-  FILE_NOT_FOUND = 'FILE_NOT_FOUND',
-  
-  // Database Errors
-  DATABASE_CONNECTION_ERROR = 'DATABASE_CONNECTION_ERROR',
-  DATABASE_QUOTA_EXCEEDED = 'DATABASE_QUOTA_EXCEEDED',
-  RECORD_NOT_FOUND = 'RECORD_NOT_FOUND',
-  
-  // General Errors
-  NETWORK_ERROR = 'NETWORK_ERROR',
-  VALIDATION_ERROR = 'VALIDATION_ERROR',
-  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
+interface APIError {
+  type: ErrorType;
+  message: string;
+  code: number;
+  details?: Record<string, any>;
+  timestamp: number;
 }
 ```
 
-### Error Handling Flow
-```mermaid
-graph TD
-    A[API Call] --> B{Success?}
-    B -->|Yes| C[Process Response]
-    B -->|No| D[Error Type]
-    
-    D --> E[Network Error]
-    D --> F[Validation Error]
-    D --> G[System Error]
-    
-    E --> H[Retry Logic]
-    F --> I[User Feedback]
-    G --> J[System Recovery]
-    
-    H --> K[Max Retries?]
-    K -->|Yes| I
-    K -->|No| A
-    
-    I --> L[Error UI]
-    J --> M[Recovery Action]
+### Error Responses
+```typescript
+// Authentication Error
+{
+  "type": "AUTHENTICATION_ERROR",
+  "message": "Invalid API key",
+  "code": 401,
+  "timestamp": 1647123456789
+}
+
+// Validation Error
+{
+  "type": "VALIDATION_ERROR",
+  "message": "Invalid request parameters",
+  "code": 400,
+  "details": {
+    "field": "temperature",
+    "error": "Must be between 0 and 1"
+  },
+  "timestamp": 1647123456789
+}
+
+// Rate Limit Error
+{
+  "type": "RATE_LIMIT_ERROR",
+  "message": "Rate limit exceeded",
+  "code": 429,
+  "details": {
+    "retryAfter": 60,
+    "limit": 100,
+    "remaining": 0
+  },
+  "timestamp": 1647123456789
+}
+```
+
+## Authentication
+
+### API Key Authentication
+```typescript
+// Request Header
+Authorization: Bearer <apiKey>
+
+// Error Response
+{
+  "type": "AUTHENTICATION_ERROR",
+  "message": "Invalid API key",
+  "code": 401,
+  "timestamp": 1647123456789
+}
+```
+
+### Session Authentication
+```typescript
+// Login Request
+POST /auth/login
+Content-Type: application/json
+
+{
+  "username": string,
+  "password": string
+}
+
+// Login Response
+{
+  "token": string,
+  "expiresIn": number,
+  "refreshToken": string
+}
+
+// Refresh Token
+POST /auth/refresh
+Authorization: Bearer <refreshToken>
+
+{
+  "token": string,
+  "expiresIn": number,
+  "refreshToken": string
+}
 ```
 
 ## Rate Limiting
 
-### Rate Limit Configuration
+### Rate Limit Headers
 ```typescript
-interface RateLimitConfig {
-  maxRequests: number;
-  timeWindow: number; // milliseconds
-  backoffStrategy: 'linear' | 'exponential';
-  maxRetries: number;
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 99
+X-RateLimit-Reset: 1647123456789
+```
+
+### Rate Limit Response
+```typescript
+{
+  "type": "RATE_LIMIT_ERROR",
+  "message": "Rate limit exceeded",
+  "code": 429,
+  "details": {
+    "retryAfter": 60,
+    "limit": 100,
+    "remaining": 0
+  },
+  "timestamp": 1647123456789
 }
 ```
 
-### Rate Limit Implementation
+## Versioning
+
+### Version Headers
 ```typescript
-class RateLimiter {
-  private requests: number[] = [];
-  private config: RateLimitConfig;
-  
-  constructor(config: RateLimitConfig) {
-    this.config = config;
-  }
-  
-  async checkLimit(): Promise<boolean> {
-    const now = Date.now();
-    this.requests = this.requests.filter(
-      time => now - time < this.config.timeWindow
-    );
-    
-    if (this.requests.length >= this.config.maxRequests) {
-      return false;
-    }
-    
-    this.requests.push(now);
-    return true;
-  }
-}
+Accept-Version: v1
+X-API-Version: v1
 ```
 
-## API Security
-
-### Security Measures
-1. **API Key Management**
-   - Secure storage of API keys
-   - Key rotation mechanism
-   - Access control
-
-2. **Request Validation**
-   - Input sanitization
-   - Schema validation
-   - Size limits
-
-3. **Response Security**
-   - Data encryption
-   - CORS configuration
-   - Content security policy
-
-### Security Flow
-```mermaid
-graph TD
-    A[Request] --> B[Security Check]
-    B --> C{Valid?}
-    
-    C -->|Yes| D[Process Request]
-    C -->|No| E[Security Error]
-    
-    D --> F[Validate Input]
-    F --> G{Valid?}
-    
-    G -->|Yes| H[Process Data]
-    G -->|No| I[Validation Error]
-    
-    H --> J[Encrypt Response]
-    J --> K[Send Response]
-    
-    E --> L[Security UI]
-    I --> L
-```
-
-## Performance Optimization
-
-### Caching Strategy
+### Version Response
 ```typescript
-interface CacheConfig {
-  ttl: number; // Time to live in milliseconds
-  maxSize: number;
-  strategy: 'lru' | 'fifo';
-}
-
-class APICache {
-  private cache: Map<string, {
-    data: any;
-    timestamp: number;
-  }> = new Map();
-  private config: CacheConfig;
-  
-  constructor(config: CacheConfig) {
-    this.config = config;
-  }
-  
-  async get(key: string): Promise<any | null> {
-    const item = this.cache.get(key);
-    if (!item) return null;
-    
-    if (Date.now() - item.timestamp > this.config.ttl) {
-      this.cache.delete(key);
-      return null;
-    }
-    
-    return item.data;
-  }
-  
-  set(key: string, data: any): void {
-    if (this.cache.size >= this.config.maxSize) {
-      this.evict();
-    }
-    
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now()
-    });
-  }
-  
-  private evict(): void {
-    if (this.config.strategy === 'lru') {
-      // Implement LRU eviction
-    } else {
-      // Implement FIFO eviction
-    }
-  }
-}
-```
-
-### Performance Monitoring
-```typescript
-interface PerformanceMetrics {
-  requestCount: number;
-  averageResponseTime: number;
-  errorRate: number;
-  cacheHitRate: number;
-}
-
-class APIMonitor {
-  private metrics: PerformanceMetrics = {
-    requestCount: 0,
-    averageResponseTime: 0,
-    errorRate: 0,
-    cacheHitRate: 0
-  };
-  
-  trackRequest(duration: number, success: boolean): void {
-    this.metrics.requestCount++;
-    this.metrics.averageResponseTime = 
-      (this.metrics.averageResponseTime * (this.metrics.requestCount - 1) + duration) 
-      / this.metrics.requestCount;
-    
-    if (!success) {
-      this.metrics.errorRate = 
-        (this.metrics.errorRate * (this.metrics.requestCount - 1) + 1) 
-        / this.metrics.requestCount;
-    }
-  }
-  
-  trackCacheHit(hit: boolean): void {
-    this.metrics.cacheHitRate = 
-      (this.metrics.cacheHitRate * (this.metrics.requestCount - 1) + (hit ? 1 : 0)) 
-      / this.metrics.requestCount;
-  }
+{
+  "version": "1.0.0",
+  "deprecated": false,
+  "sunset": null,
+  "documentation": "https://api.docs/v1"
 }
 ``` 

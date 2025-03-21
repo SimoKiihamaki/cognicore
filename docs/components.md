@@ -1,296 +1,313 @@
-# Component Documentation
+# Components Documentation
 
 ## Core Components
 
-### NoteEditor
-**Location**: `src/components/NoteEditor.tsx`
-**Purpose**: Rich text editor for note creation and editing
-**Features**:
-- Markdown support
-- Real-time updates
-- Auto-save functionality
-- Integration with graph visualization
+### Service Provider
+The root component that manages service initialization and dependency injection.
 
-```mermaid
-graph TD
-    A[NoteEditor] --> B[Markdown Editor]
-    A --> C[Auto-save]
-    A --> D[Graph Integration]
-    B --> E[Preview Mode]
-    B --> F[Edit Mode]
-    C --> G[Local Storage]
-    C --> H[Cache Service]
-    D --> I[Update Graph]
-```
+```typescript
+interface ServiceProviderProps {
+  children: React.ReactNode;
+}
 
-### GraphVisualization
-**Location**: `src/components/GraphVisualization.tsx`
-**Purpose**: Interactive visualization of note relationships
-**Features**:
-- Force-directed graph layout
-- Node and edge interactions
-- Zoom and pan controls
-- Real-time updates
-
-```mermaid
-graph TD
-    A[GraphVisualization] --> B[Cytoscape]
-    A --> C[Layout Engine]
-    A --> D[Interaction Handler]
-    B --> E[Node Rendering]
-    B --> F[Edge Rendering]
-    C --> G[Force Layout]
-    C --> H[Cola Layout]
-    D --> I[Click Events]
-    D --> J[Drag Events]
-```
-
-### ChatInterface
-**Location**: `src/components/chat/EnhancedChatInterface.tsx`
-**Purpose**: AI interaction interface with LM Studio integration
-**Features**:
-- Real-time chat with streaming
-- Multi-model support
-- Message history management
-- Code highlighting
-- Vision capabilities (optional)
-
-```mermaid
-graph TD
-    A[EnhancedChatInterface] --> B[MessageList]
-    A --> C[InputArea]
-    A --> D[ModelSelector]
-    B --> E[MessageRenderer]
-    C --> F[StreamProcessor]
-    D --> G[ModelConfig]
-```
-
-### Sidebar
-**Location**: `src/components/Sidebar.tsx`
-**Purpose**: Navigation and folder management
-**Features**:
-- Folder tree view
-- Quick actions
-- Search functionality
-- Section navigation
-
-```mermaid
-graph TD
-    A[Sidebar] --> B[FolderTree]
-    A --> C[SearchBar]
-    A --> D[Navigation]
-    B --> E[Tree View]
-    B --> F[Folder Actions]
-    C --> G[Search Results]
-    D --> H[Section Links]
-```
-
-### ServerConfig
-**Location**: `src/components/settings/ServerConfig.tsx`
-**Purpose**: LM Studio and MCP server configuration
-**Features**:
-- Server management
-- Model configuration
-- Connection testing
-- API key management
-
-```mermaid
-graph TD
-    A[ServerConfig] --> B[LMStudioConfig]
-    A --> C[MCPConfig]
-    B --> D[ModelPresets]
-    B --> E[ConnectionTest]
-    C --> F[ServerList]
-    C --> G[ServerEditor]
+const ServiceProvider: React.FC<ServiceProviderProps> = ({ children }) => {
+  // Service initialization and context management
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  
+  // Service registration and dependency injection
+  const services = useServiceRegistry();
+  
+  // Error handling and recovery
+  const handleError = useErrorHandler();
+  
+  return (
+    <ServiceContext.Provider value={services}>
+      <ErrorBoundary onError={handleError}>
+        {isInitialized ? children : <LoadingScreen />}
+      </ErrorBoundary>
+    </ServiceContext.Provider>
+  );
+};
 ```
 
 ### MainLayout
-**Location**: `src/components/layout/MainLayout.tsx`
-**Purpose**: Primary application layout
-**Features**:
-- Responsive layout
-- Sidebar integration
-- Chat interface
-- Section navigation
+The primary layout component that manages the application's structure.
 
-```mermaid
-graph TD
-    A[MainLayout] --> B[Sidebar]
-    A --> C[Header]
-    A --> D[Content]
-    A --> E[ChatPanel]
-    B --> F[Navigation]
-    C --> G[Actions]
-    D --> H[Routes]
+```typescript
+interface MainLayoutProps {
+  children: React.ReactNode;
+}
+
+const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+  // Layout state management
+  const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const [activeSection, setActiveSection] = useState('notes');
+  
+  // Responsive layout handling
+  const { width } = useWindowSize();
+  const isMobile = width < 768;
+  
+  return (
+    <div className="flex h-screen">
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onToggle={setSidebarOpen}
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+      />
+      <main className="flex-1 overflow-hidden">
+        {children}
+      </main>
+      <ChatPanel />
+    </div>
+  );
+};
 ```
 
-### ModelSettings
-**Location**: `src/components/settings/ModelSettings.tsx`
-**Purpose**: Model configuration and management
-**Features**:
-- Model selection
-- Parameter configuration
-- Preset management
-- Connection status
+### Chat Interface
+The AI interaction component that manages conversations with LM Studio.
 
-```mermaid
-graph TD
-    A[ModelSettings] --> B[ModelSelector]
-    A --> C[ParameterConfig]
-    A --> D[PresetManager]
-    B --> E[ModelList]
-    C --> F[Settings]
-    D --> G[Presets]
+```typescript
+interface ChatInterfaceProps {
+  modelName?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+const ChatInterface: React.FC<ChatInterfaceProps> = (props) => {
+  // Chat state management
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  
+  // LM Studio integration
+  const { chat, processImage } = useLMStudio(props);
+  
+  // Message handling
+  const handleSend = async (message: string) => {
+    // Message processing logic
+  };
+  
+  return (
+    <div className="flex flex-col h-full">
+      <ChatHeader />
+      <MessageList messages={messages} />
+      <ChatInput onSend={handleSend} isTyping={isTyping} />
+    </div>
+  );
+};
+```
+
+### Graph Visualization
+Interactive knowledge graph visualization component.
+
+```typescript
+interface GraphVisualizationProps {
+  nodes: Node[];
+  edges: Edge[];
+  onNodeClick?: (node: Node) => void;
+  onEdgeClick?: (edge: Edge) => void;
+}
+
+const GraphVisualization: React.FC<GraphVisualizationProps> = (props) => {
+  // Graph state management
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [zoom, setZoom] = useState(1);
+  
+  // Graph rendering and interaction
+  const graphRef = useRef<HTMLDivElement>(null);
+  const { layout, update } = useGraphLayout();
+  
+  return (
+    <div className="relative w-full h-full" ref={graphRef}>
+      <GraphControls zoom={zoom} onZoomChange={setZoom} />
+      <GraphCanvas
+        nodes={props.nodes}
+        edges={props.edges}
+        layout={layout}
+        zoom={zoom}
+        onNodeClick={props.onNodeClick}
+        onEdgeClick={props.onEdgeClick}
+      />
+      {selectedNode && <NodeDetails node={selectedNode} />}
+    </div>
+  );
+};
+```
+
+### Settings Panel
+Application configuration and management component.
+
+```typescript
+interface SettingsPanelProps {
+  onSave?: (settings: Settings) => void;
+  onReset?: () => void;
+}
+
+const SettingsPanel: React.FC<SettingsPanelProps> = (props) => {
+  // Settings state management
+  const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [isDirty, setIsDirty] = useState(false);
+  
+  // Settings sections
+  const sections = [
+    {
+      title: 'AI Models',
+      component: <ModelSettings />
+    },
+    {
+      title: 'Servers',
+      component: <ServerConfig />
+    },
+    {
+      title: 'Interface',
+      component: <InterfaceSettings />
+    },
+    {
+      title: 'Advanced',
+      component: <AdvancedSettings />
+    }
+  ];
+  
+  return (
+    <div className="p-4 space-y-4">
+      <SettingsHeader isDirty={isDirty} onSave={() => props.onSave?.(settings)} />
+      <Tabs defaultValue="ai-models">
+        {sections.map(section => (
+          <TabsContent key={section.title} value={section.title.toLowerCase()}>
+            {section.component}
+          </TabsContent>
+        ))}
+      </Tabs>
+    </div>
+  );
+};
 ```
 
 ## UI Components
 
-### Button
-**Location**: `src/components/ui/button.tsx`
-**Purpose**: Reusable button component
-**Variants**:
-- Primary
-- Secondary
-- Destructive
-- Outline
-- Ghost
+### Common Components
+- `Button`: Customizable button component with variants
+- `Input`: Text input with validation and states
+- `Select`: Dropdown selection component
+- `Dialog`: Modal dialog with animations
+- `Tabs`: Tabbed interface component
+- `Card`: Container component with variants
+- `Toast`: Notification component
 
-### Input
-**Location**: `src/components/ui/input.tsx`
-**Purpose**: Form input component
-**Features**:
-- Validation support
-- Error states
-- Disabled states
-- Custom styling
+### Form Components
+- `Form`: Form wrapper with validation
+- `FormField`: Form field container
+- `FormLabel`: Form label component
+- `FormMessage`: Form error message
+- `FormDescription`: Form field description
 
-### Dialog
-**Location**: `src/components/ui/dialog.tsx`
-**Purpose**: Modal dialog component
-**Features**:
-- Accessibility
-- Animation
-- Backdrop
-- Focus management
+### Data Display
+- `Table`: Data table component
+- `List`: List component with variants
+- `Tree`: Tree view component
+- `Badge`: Status badge component
+- `Progress`: Progress indicator
 
-## Component Relationships
+### Navigation
+- `Sidebar`: Application sidebar
+- `Breadcrumb`: Navigation breadcrumb
+- `Menu`: Dropdown menu component
+- `Tabs`: Tab navigation component
+- `CommandPalette`: Command interface
 
-```mermaid
-graph TD
-    A[App] --> B[MainLayout]
-    B --> C[Sidebar]
-    B --> D[Header]
-    B --> E[Content]
-    B --> F[ChatPanel]
-    
-    C --> G[Navigation]
-    C --> H[FolderTree]
-    
-    D --> I[Actions]
-    D --> J[UserMenu]
-    
-    E --> K[Routes]
-    E --> L[ErrorBoundary]
-    
-    F --> M[EnhancedChat]
-    F --> N[ModelSettings]
-```
+## Component Architecture
 
-## Component State Management
+### Component Hierarchy
 
 ```mermaid
 graph TD
-    A[Component State] --> B[Local State]
-    A --> C[Context State]
-    A --> D[Query State]
+    A[App] --> B[ServiceProvider]
+    B --> C[MainLayout]
+    C --> D[Sidebar]
+    C --> E[ChatInterface]
+    C --> F[GraphVisualization]
     
-    B --> E[useState]
-    B --> F[useLocalStorage]
+    D --> G[Navigation]
+    D --> H[FolderTree]
     
-    C --> G[ServiceContext]
-    C --> H[ConfigContext]
+    E --> I[MessageList]
+    E --> J[ChatInput]
     
-    D --> I[ChatQueries]
-    D --> J[ModelQueries]
+    F --> K[GraphCanvas]
+    F --> L[GraphControls]
 ```
 
-## Component Lifecycle
-
-```mermaid
-sequenceDiagram
-    participant Component
-    participant Hooks
-    participant Services
-    participant API
-    
-    Component->>Hooks: Mount
-    Hooks->>Services: Initialize
-    Services->>API: Connect
-    API-->>Component: Update
-    
-    loop User Interaction
-        Component->>Services: Request
-        Services->>API: Process
-        API-->>Services: Response
-        Services-->>Component: Update
-    end
-    
-    Component->>Hooks: Unmount
-    Hooks->>Services: Cleanup
-```
-
-## Component Styling
+### State Flow
 
 ```mermaid
 graph TD
-    A[Component Styling] --> B[Tailwind CSS]
-    A --> C[shadcn/ui]
-    A --> D[Custom Styles]
+    A[User Action] --> B[Component Event]
+    B --> C[Local State]
+    B --> D[Service Call]
     
-    B --> E[Utility Classes]
-    B --> F[Responsive Design]
+    C --> E[UI Update]
+    D --> F[Data Update]
+    F --> E
     
-    C --> G[Base Components]
-    C --> H[Theme System]
-    
-    D --> I[Component-specific]
-    D --> J[Animations]
+    E --> G[Re-render]
 ```
 
-## Best Practices
+### Error Boundaries
 
+```mermaid
+graph TD
+    A[Error] --> B[Component Error Boundary]
+    B --> C[Error UI]
+    B --> D[Error Recovery]
+    
+    C --> E[User Feedback]
+    D --> F[State Reset]
+    D --> G[Service Retry]
+```
+
+## Component Guidelines
+
+### Best Practices
 1. **Component Structure**
-   - Use functional components
-   - Implement TypeScript types
-   - Follow shadcn/ui patterns
-   - Maintain error boundaries
+   - Clear separation of concerns
+   - Single responsibility principle
+   - Proper prop typing
+   - Error boundary implementation
 
 2. **State Management**
-   - Use appropriate hooks
-   - Implement proper caching
-   - Handle loading states
-   - Manage side effects
+   - Local state when possible
+   - Service integration through hooks
+   - Proper state initialization
+   - Cleanup on unmount
 
 3. **Performance**
-   - Implement memoization
-   - Optimize re-renders
-   - Handle async operations
-   - Manage resources
+   - Memoization where needed
+   - Lazy loading of heavy components
+   - Proper dependency arrays
+   - Event handler optimization
 
-4. **Error Handling**
-   - Use error boundaries
-   - Provide feedback
-   - Handle edge cases
-   - Log errors properly
+4. **Accessibility**
+   - ARIA attributes
+   - Keyboard navigation
+   - Focus management
+   - Screen reader support
 
-5. **Accessibility**
-   - Follow ARIA patterns
-   - Support keyboard
-   - Manage focus
-   - Test with tools
+### Component Testing
+1. **Unit Tests**
+   - Component rendering
+   - Props validation
+   - Event handling
+   - State changes
 
-6. **Testing**
-   - Write unit tests for logic
-   - Implement integration tests
-   - Test edge cases
-   - Maintain test coverage 
+2. **Integration Tests**
+   - Component interactions
+   - Service integration
+   - Error handling
+   - User flows
+
+3. **Visual Tests**
+   - Layout consistency
+   - Responsive design
+   - Theme support
+   - Animation testing 
