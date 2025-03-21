@@ -50,6 +50,35 @@ CogniCore is a lightweight, privacy-focused note-taking and knowledge management
    npm run preview
    ```
 
+### Setting up LM Studio Integration
+
+1. Download and install [LM Studio](https://lmstudio.ai/)
+2. Launch LM Studio and download a model (we recommend Llama 3 8B Instruct or Phi-3 Mini for best performance)
+3. Start the local inference server in LM Studio
+4. In CogniCore, go to Settings → AI Integration and configure the LM Studio connection:
+   - Server URL: `http://localhost:1234` (default)
+   - API Key: Leave empty unless you've configured authentication in LM Studio
+   - Select the appropriate model name that matches your loaded model in LM Studio
+5. Test the connection to ensure everything is working properly
+
+### File System Integration
+
+CogniCore can monitor directories for changes and automatically index new and modified files:
+
+1. Go to Settings → File Management
+2. Click "Add Directory" and select a folder containing your knowledge base files
+3. Configure monitoring options (polling interval, file types to include, etc.)
+4. CogniCore will automatically process text files and generate embeddings for semantic search
+
+### Using the Knowledge Graph
+
+The Knowledge Graph visualizes connections between your notes and files based on semantic similarity:
+
+1. Navigate to the Graph view
+2. Adjust the similarity threshold to control how connections are displayed
+3. Use the different layout options to explore your knowledge in different ways
+4. Search and filter to focus on specific areas of your knowledge base
+
 ## Usage
 
 ### Initial Setup

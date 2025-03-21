@@ -21,17 +21,34 @@ import MarkdownRenderer from '@/components/markdown/MarkdownRenderer';
 
 interface ChatInterfaceProps {
   asSidebar?: boolean;
+  initialMessages?: ChatMessage[];
+  historyId?: string;
+  onMessageSent?: (message: string, aiResponse: string) => void;
 }
 
-const ChatInterface = ({ asSidebar = false }: ChatInterfaceProps) => {
-  const [chatHistory, setChatHistory] = useLocalStorage<ChatMessage[]>('cognicore-chat-history', [
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'Hi there! How can I help you today?',
-      timestamp: new Date(),
-    },
-  ]);
+const ChatInterface = ({ 
+  asSidebar = false,
+  initialMessages,
+  historyId,
+  onMessageSent
+}: ChatInterfaceProps) => {
+  // Use provided messages or fallback to local storage
+  // Using component ID to avoid collisions when multiple instances are rendered
+  const componentId = useRef(`chat-${Math.random().toString(36).substring(2, 9)}`).current;
+  
+  const [chatHistory, setChatHistory] = useLocalStorage<ChatMessage[]>(
+    historyId 
+      ? `cognicore-chat-${historyId}` 
+      : `cognicore-chat-history-${componentId}`, // Unique key per instance
+    initialMessages || [
+      {
+        id: '1',
+        role: 'assistant',
+        content: 'Hi there! How can I help you today?',
+        timestamp: new Date(),
+      },
+    ]
+  );
   
   const { notes } = useNotes();
   const { toast } = useToast();
@@ -210,8 +227,13 @@ const ChatInterface = ({ asSidebar = false }: ChatInterfaceProps) => {
         referencedContexts: contexts.length > 0 ? contexts.map(c => c.id) : undefined
       };
       
-      // Update the chat history
-      setChatHistory(prev => [...prev, assistantMessage]);
+      // If onMessageSent callback is provided, use it
+      if (onMessageSent) {
+        onMessageSent(inputValue, response);
+      } else {
+        // Otherwise update the chat history directly
+        setChatHistory(prev => [...prev, assistantMessage]);
+      }
     } catch (error) {
       console.error('Failed to get response from LM Studio:', error);
       

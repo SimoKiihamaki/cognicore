@@ -25,6 +25,7 @@ export default defineConfig({
           vendor: ['react', 'react-dom'],
           ui: ['@radix-ui/react-*'],
           utils: ['date-fns', 'zod'],
+          api: ['@/api/lmStudioApi', '@/api/mcpApi'],
         },
       },
     },
@@ -39,7 +40,9 @@ export default defineConfig({
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "build:prod": "vite build --mode production",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:docker": "docker build -t cognicore .",
+    "deploy:docker": "docker-compose up -d"
   }
 }
 ```
@@ -52,28 +55,54 @@ export default defineConfig({
 interface EnvironmentConfig {
   apiUrl: string;
   lmStudioUrl: string;
+  mcpServers: {
+    url: string;
+    apiKey: string;
+  }[];
   maxCacheSize: number;
   enableAnalytics: boolean;
+  modelPresets: ModelPreset[];
 }
 
 const environments = {
   development: {
     apiUrl: 'http://localhost:3000',
     lmStudioUrl: 'http://localhost:1234',
+    mcpServers: [
+      {
+        url: 'http://localhost:8080',
+        apiKey: process.env.MCP_API_KEY
+      }
+    ],
     maxCacheSize: 100,
     enableAnalytics: false,
+    modelPresets: developmentModelPresets
   },
   staging: {
     apiUrl: 'https://staging-api.cognicore.app',
     lmStudioUrl: 'https://staging-lmstudio.cognicore.app',
+    mcpServers: [
+      {
+        url: 'https://staging-mcp.cognicore.app',
+        apiKey: process.env.STAGING_MCP_API_KEY
+      }
+    ],
     maxCacheSize: 500,
     enableAnalytics: true,
+    modelPresets: stagingModelPresets
   },
   production: {
     apiUrl: 'https://api.cognicore.app',
     lmStudioUrl: 'https://lmstudio.cognicore.app',
+    mcpServers: [
+      {
+        url: 'https://mcp.cognicore.app',
+        apiKey: process.env.PROD_MCP_API_KEY
+      }
+    ],
     maxCacheSize: 1000,
     enableAnalytics: true,
+    modelPresets: productionModelPresets
   },
 };
 ```
@@ -160,6 +189,9 @@ graph TD
     
     D --> J[Monitoring]
     D --> K[Logging]
+    
+    D --> L[LM Studio Servers]
+    D --> M[MCP Servers]
 ```
 
 ### Resource Configuration
@@ -195,6 +227,29 @@ interface ResourceConfig {
     buckets: {
       assets: string;
       backups: string;
+      models: string;
+    };
+  };
+  lmStudio: {
+    instances: {
+      type: string;
+      count: number;
+      storage: number;
+    };
+    models: {
+      storage: number;
+      backup: boolean;
+    };
+  };
+  mcp: {
+    instances: {
+      type: string;
+      count: number;
+      storage: number;
+    };
+    loadBalancer: {
+      type: string;
+      ssl: boolean;
     };
   };
 }
@@ -211,16 +266,22 @@ interface MonitoringConfig {
     memory: boolean;
     disk: boolean;
     network: boolean;
+    api: boolean;
+    models: boolean;
   };
   alerts: {
     cpuThreshold: number;
     memoryThreshold: number;
     errorRateThreshold: number;
+    apiLatencyThreshold: number;
+    modelLoadThreshold: number;
   };
   dashboards: {
     performance: string[];
     errors: string[];
     business: string[];
+    api: string[];
+    models: string[];
   };
 }
 ```
@@ -245,57 +306,120 @@ interface LoggingConfig {
     elasticsearch: number;
     s3: number;
   };
+  api: {
+    requestLogging: boolean;
+    responseLogging: boolean;
+    errorLogging: boolean;
+  };
+  models: {
+    loadLogging: boolean;
+    performanceLogging: boolean;
+    errorLogging: boolean;
+  };
 }
 ```
 
-## Security
+## Docker Configuration
 
-### Security Measures
-```mermaid
-graph TD
-    A[Security] --> B[Network Security]
-    A --> C[Application Security]
-    A --> D[Data Security]
-    
-    B --> B1[VPC]
-    B --> B2[Firewall]
-    B --> B3[WAF]
-    
-    C --> C1[Authentication]
-    C --> C2[Authorization]
-    C --> C3[Input Validation]
-    
-    D --> D1[Encryption]
-    D --> D2[Backup]
-    D --> D3[Access Control]
+### Dockerfile
+```dockerfile
+# Build stage
+FROM node:18-alpine as builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
 ```
 
-### Security Configuration
+### Docker Compose
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+      - LM_STUDIO_URL=http://lmstudio:1234
+      - MCP_SERVERS=http://mcp:8080
+    depends_on:
+      - lmstudio
+      - mcp
+
+  lmstudio:
+    image: lmstudio/lmstudio:latest
+    ports:
+      - "1234:1234"
+    volumes:
+      - lmstudio_data:/data
+    environment:
+      - API_KEY=${LM_STUDIO_API_KEY}
+      - MAX_TOKENS=2048
+      - TEMPERATURE=0.7
+
+  mcp:
+    image: cognicore/mcp:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - mcp_data:/data
+    environment:
+      - API_KEY=${MCP_API_KEY}
+      - MAX_CONNECTIONS=100
+      - TIMEOUT=30
+
+volumes:
+  lmstudio_data:
+  mcp_data:
+```
+
+## Security Considerations
+
+### API Security
 ```typescript
-// security.ts
 interface SecurityConfig {
-  network: {
-    vpc: {
-      cidr: string;
-      subnets: SubnetConfig[];
-    };
-    securityGroups: SecurityGroupConfig[];
-  };
-  application: {
-    auth: {
-      provider: string;
-      mfa: boolean;
-      sessionTimeout: number;
+  api: {
+    rateLimit: {
+      window: number;
+      max: number;
     };
     cors: {
       allowedOrigins: string[];
       methods: string[];
+      headers: string[];
+    };
+    auth: {
+      type: 'jwt' | 'api-key';
+      tokenExpiry: number;
     };
   };
-  data: {
+  models: {
+    access: {
+      type: 'public' | 'private';
+      allowedUsers: string[];
+    };
     encryption: {
-      atRest: boolean;
-      inTransit: boolean;
+      enabled: boolean;
+      algorithm: string;
+    };
+  };
+  storage: {
+    encryption: {
+      enabled: boolean;
+      algorithm: string;
     };
     backup: {
       frequency: string;
@@ -305,93 +429,76 @@ interface SecurityConfig {
 }
 ```
 
+### Network Security
+```typescript
+interface NetworkConfig {
+  vpc: {
+    cidr: string;
+    subnets: SubnetConfig[];
+  };
+  securityGroups: {
+    app: {
+      inbound: PortConfig[];
+      outbound: PortConfig[];
+    };
+    lmstudio: {
+      inbound: PortConfig[];
+      outbound: PortConfig[];
+    };
+    mcp: {
+      inbound: PortConfig[];
+      outbound: PortConfig[];
+    };
+  };
+  acl: {
+    rules: ACLRule[];
+  };
+}
+```
+
 ## Backup and Recovery
 
 ### Backup Strategy
-```mermaid
-graph TD
-    A[Backup Strategy] --> B[Database Backup]
-    A --> C[File Backup]
-    A --> D[Configuration Backup]
-    
-    B --> B1[Daily Full]
-    B --> B2[Hourly Incremental]
-    
-    C --> C1[Daily Snapshot]
-    C --> C2[Version Control]
-    
-    D --> D1[Daily Export]
-    D --> D2[Version History]
+```typescript
+interface BackupConfig {
+  database: {
+    frequency: string;
+    retention: number;
+    type: 'full' | 'incremental';
+  };
+  models: {
+    frequency: string;
+    retention: number;
+    storage: string;
+  };
+  config: {
+    frequency: string;
+    retention: number;
+    storage: string;
+  };
+}
 ```
 
 ### Recovery Procedures
 ```typescript
-// recovery.ts
 interface RecoveryConfig {
   database: {
     restorePoint: string;
     validation: boolean;
-    rollback: boolean;
   };
-  files: {
+  models: {
     restorePoint: string;
     validation: boolean;
-    rollback: boolean;
   };
-  configuration: {
+  config: {
     restorePoint: string;
     validation: boolean;
-    rollback: boolean;
-  };
-}
-```
-
-## Performance Optimization
-
-### Performance Configuration
-```typescript
-// performance.ts
-interface PerformanceConfig {
-  caching: {
-    browser: {
-      maxAge: number;
-      staleWhileRevalidate: boolean;
-    };
-    cdn: {
-      maxAge: number;
-      staleWhileRevalidate: boolean;
-    };
-  };
-  optimization: {
-    codeSplitting: boolean;
-    treeShaking: boolean;
-    minification: boolean;
   };
   monitoring: {
-    metrics: string[];
-    thresholds: Record<string, number>;
+    healthChecks: string[];
+    alerts: string[];
   };
 }
-```
-
-### Performance Monitoring
-```mermaid
-graph TD
-    A[Performance Monitoring] --> B[Real-time Metrics]
-    A --> C[Historical Data]
-    A --> D[Alerts]
-    
-    B --> B1[Response Time]
-    B --> B2[Error Rate]
-    B --> B3[Resource Usage]
-    
-    C --> C1[Trends]
-    C --> C2[Patterns]
-    C --> C3[Anomalies]
-    
-    D --> D1[Threshold Alerts]
-    D --> D2[Anomaly Alerts]
-    D --> D3[Trend Alerts]
 ```
 
 ## Deployment Checklist

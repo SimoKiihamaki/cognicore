@@ -1,4 +1,3 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { v4 as uuidv4 } from 'uuid';
@@ -15,6 +14,14 @@ export interface Folder {
 // Adding this alias type for components that expect FolderWithChildren
 export type FolderWithChildren = Folder;
 
+// Type for folder path result
+export interface FolderPathResult {
+  id: string;
+  name: string;
+  path: string;
+  parentFolders: Folder[];
+}
+
 interface FoldersContextType {
   folderTree: Folder[];
   folders: Folder[]; // Add this property for backward compatibility
@@ -22,6 +29,7 @@ interface FoldersContextType {
   deleteFolder: (id: string) => void;
   renameFolder: (id: string, newName: string) => void;
   toggleFolderExpanded: (id: string) => void;
+  getFolderPath: (folderId: string | null) => FolderPathResult;
 }
 
 const FoldersContext = createContext<FoldersContextType | undefined>(undefined);
@@ -29,7 +37,7 @@ const FoldersContext = createContext<FoldersContextType | undefined>(undefined);
 // Default folders
 const defaultFolders: Folder[] = [
   {
-    id: 'root',
+    id: 'folder-root',
     name: 'My Notes',
     parentId: null,
     expanded: true,
@@ -37,15 +45,15 @@ const defaultFolders: Folder[] = [
       {
         id: 'work',
         name: 'Work',
-        parentId: 'root',
-        expanded: false,
+        parentId: 'folder-root',
+        expanded: true,
         children: [],
       },
       {
         id: 'personal',
         name: 'Personal',
-        parentId: 'root',
-        expanded: false,
+        parentId: 'folder-root',
+        expanded: true,
         children: [],
       }
     ],
@@ -180,6 +188,56 @@ export const FoldersProvider = ({ children }: { children: ReactNode }) => {
     setFolderTree(toggleExpanded(folderTree));
   };
 
+  // Get folder path for a given folder ID
+  const getFolderPath = (folderId: string | null): FolderPathResult => {
+    // Default return for null folder ID
+    if (!folderId) {
+      return {
+        id: '',
+        name: 'No Folder',
+        path: '',
+        parentFolders: []
+      };
+    }
+    
+    // Find the folder by ID in the flattened list
+    const folder = folders.find(f => f.id === folderId);
+    
+    if (!folder) {
+      return {
+        id: folderId,
+        name: 'Unknown Folder',
+        path: '',
+        parentFolders: []
+      };
+    }
+    
+    // Build the parent folders array
+    const parentFolders: Folder[] = [];
+    let currentFolder = folder;
+    
+    while (currentFolder.parentId) {
+      const parent = folders.find(f => f.id === currentFolder.parentId);
+      if (parent) {
+        parentFolders.unshift(parent);
+        currentFolder = parent;
+      } else {
+        break;
+      }
+    }
+    
+    // Build the path string
+    const pathParts = [...parentFolders.map(f => f.name), folder.name];
+    const path = pathParts.join(' / ');
+    
+    return {
+      id: folder.id,
+      name: folder.name,
+      path,
+      parentFolders
+    };
+  };
+
   return (
     <FoldersContext.Provider
       value={{
@@ -189,6 +247,7 @@ export const FoldersProvider = ({ children }: { children: ReactNode }) => {
         deleteFolder,
         renameFolder,
         toggleFolderExpanded,
+        getFolderPath,
       }}
     >
       {children}

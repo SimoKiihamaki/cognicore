@@ -1,9 +1,10 @@
-
 import { useState, useEffect } from 'react';
-import { ChevronLeft, Network, FileText, Settings, Plus, FolderPlus, Server, ServerCog } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronLeft, MessageSquare } from 'lucide-react';
 import { useFolders } from '@/hooks/useFolders';
 import { useNotes } from '@/hooks/useNotes';
 import FolderTree from './FolderTree';
+import { Icons } from '@/components/ui/icons';
 import {
   Dialog,
   DialogContent,
@@ -22,8 +23,8 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarProps) => {
+  const navigate = useNavigate();
   const [notesExpanded, setNotesExpanded] = useState(true);
-  const [serversExpanded, setServersExpanded] = useState(true);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [isAddFolderDialogOpen, setIsAddFolderDialogOpen] = useState(false);
   const [isRenameFolderDialogOpen, setIsRenameFolderDialogOpen] = useState(false);
@@ -47,6 +48,25 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
   
   const handleSectionClick = (section: string) => {
     onSectionChange(section);
+    
+    // Navigate to the appropriate route based on section
+    switch (section) {
+      case 'graph':
+        navigate('/graph');
+        break;
+      case 'chat':
+        navigate('/chat');
+        break;
+      case 'vision-chat':
+        navigate('/vision-chat');
+        break;
+      case 'settings':
+        navigate('/settings');
+        break;
+      default:
+        navigate('/editor');
+    }
+    
     // On mobile, close the sidebar after selection
     if (window.innerWidth < 768) {
       onClose();
@@ -54,10 +74,16 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
   };
 
   const handleFolderClick = (folderId: string) => {
-    setActiveFolder(folderId);
-    // You might want to trigger some action here like loading notes for this folder
-    // For now, we'll just navigate to the editor section
-    onSectionChange('editor');
+    // Check if this is a note ID
+    if (folderId.startsWith('note-')) {
+      // Navigate to the note editor
+      navigate(`/editor/${folderId}`);
+    } else {
+      // Handle folder click
+      setActiveFolder(folderId);
+      // Navigate to editor with folder filter
+      navigate(`/editor?folder=${folderId}`);
+    }
   };
   
   const handleAddSubfolder = (parentId: string) => {
@@ -110,6 +136,12 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
     }
   };
   
+  // Force refresh of note counts when sidebar mounts or notes change
+  useEffect(() => {
+    // This is just to ensure the component re-renders when notes change
+    console.log(`Notes count updated: ${notes.length} notes total`);
+  }, [notes]);
+  
   // Calculate notes count per folder
   const notesInFolder: Record<string, number> = {};
   
@@ -150,7 +182,10 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
       >
         <div className="h-full flex flex-col">
           <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
-            <span className="text-lg font-semibold text-sidebar-foreground">CogniCore</span>
+            <div className="flex items-center">
+              <Icons.logo className="w-6 h-6 mr-2 text-primary" />
+              <span className="text-lg font-semibold text-sidebar-foreground">CogniCore</span>
+            </div>
             <button 
               onClick={onClose}
               className="p-1 rounded-lg button-hover-effect md:hidden"
@@ -171,8 +206,34 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
                   }`}
                 >
-                  <Network className="w-5 h-5 mr-3" />
-                  <span>Graph</span>
+                  <Icons.networkHexagon className="w-5 h-5 mr-3" />
+                  <span>Knowledge Graph</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleSectionClick('chat')}
+                  className={`w-full flex items-center px-3 py-2 rounded-lg transition-colors ${
+                    activeSection === 'chat' 
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                  }`}
+                >
+                  <MessageSquare className="w-5 h-5 mr-3" />
+                  <span>Chat</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleSectionClick('vision-chat')}
+                  className={`w-full flex items-center px-3 py-2 rounded-lg transition-colors ${
+                    activeSection === 'vision-chat' 
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                  }`}
+                >
+                  <Icons.image className="w-5 h-5 mr-3" />
+                  <span>Vision Chat</span>
                 </button>
               </li>
               <li>
@@ -181,7 +242,7 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
                   className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
                 >
                   <div className="flex items-center">
-                    <FileText className="w-5 h-5 mr-3" />
+                    <Icons.fileText className="w-5 h-5 mr-3" />
                     <span>Notes</span>
                   </div>
                   <span className="text-xs bg-sidebar-accent px-2 py-0.5 rounded-full">
@@ -190,8 +251,21 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
                 </button>
               </li>
               {notesExpanded && (
-                <li className="ml-9 mt-1">
+                <li className="ml-6 mt-1">
+                  {/* Notes actions */}
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <button 
+                      onClick={() => navigate('/editor')}
+                      className="flex items-center text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
+                    >
+                      <Icons.plus className="w-4 h-4 mr-2" />
+                      New Note
+                    </button>
+                  </div>
+                  
+                  {/* Key prop forces re-render when note structure changes */}
                   <FolderTree 
+                    key={`folder-tree-${notes.length}`}
                     folders={folderTree}
                     onFolderClick={handleFolderClick}
                     onToggleExpand={toggleFolderExpanded}
@@ -201,40 +275,6 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
                     activeFolder={activeFolder}
                     notesInFolder={notesInFolder}
                   />
-                  
-                  <button 
-                    onClick={() => handleSectionClick('editor')}
-                    className="flex items-center py-1.5 mt-2 text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    New Note
-                  </button>
-                </li>
-              )}
-              <li>
-                <button
-                  onClick={() => setServersExpanded(!serversExpanded)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
-                >
-                  <div className="flex items-center">
-                    <Server className="w-5 h-5 mr-3" />
-                    <span>MCP Servers</span>
-                  </div>
-                </button>
-              </li>
-              {serversExpanded && (
-                <li className="ml-9 mt-1">
-                  <button 
-                    onClick={() => handleSectionClick('server-config')}
-                    className={`flex items-center py-1.5 text-sm w-full ${
-                      activeSection === 'server-config' 
-                        ? 'text-sidebar-accent-foreground font-medium' 
-                        : 'text-sidebar-foreground/70 hover:text-sidebar-foreground'
-                    } transition-colors`}
-                  >
-                    <ServerCog className="w-4 h-4 mr-2" />
-                    Configure Servers
-                  </button>
                 </li>
               )}
               <li>
@@ -246,7 +286,7 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
                   }`}
                 >
-                  <Settings className="w-5 h-5 mr-3" />
+                  <Icons.settings className="w-5 h-5 mr-3" />
                   <span>Settings</span>
                 </button>
               </li>
@@ -256,7 +296,7 @@ const Sidebar = ({ isOpen, onClose, activeSection, onSectionChange }: SidebarPro
           <div className="p-4 border-t border-sidebar-border">
             <div className="glass rounded-lg p-3">
               <p className="text-xs text-sidebar-foreground/70">
-                Running locally. Privacy-focused design.
+                Running locally. All data stays on your device.
               </p>
             </div>
           </div>

@@ -114,6 +114,90 @@ graph TD
     D --> M[Sync Status]
 ```
 
+### useLMStudio
+**Location**: `src/hooks/useLMStudio.tsx`
+**Purpose**: Manage LM Studio integration and configuration
+**Features**:
+- LM Studio configuration management
+- Model selection and validation
+- Connection status monitoring
+- Error handling and recovery
+
+```mermaid
+graph TD
+    A[useLMStudio] --> B[Config Management]
+    A --> C[Model Selection]
+    A --> D[Connection Status]
+    
+    B --> E[Load Config]
+    B --> F[Save Config]
+    B --> G[Validate Config]
+    
+    C --> H[Model List]
+    C --> I[Model Validation]
+    C --> J[Model Settings]
+    
+    D --> K[Connection Test]
+    D --> L[Status Updates]
+    D --> M[Error Recovery]
+```
+
+### useMCPServers
+**Location**: `src/hooks/useMCPServers.tsx`
+**Purpose**: Manage MCP server configurations
+**Features**:
+- Server CRUD operations
+- Server validation
+- Connection testing
+- Active server management
+
+```mermaid
+graph TD
+    A[useMCPServers] --> B[Server Management]
+    A --> C[Connection Testing]
+    A --> D[State Management]
+    
+    B --> E[Add Server]
+    B --> F[Update Server]
+    B --> G[Delete Server]
+    
+    C --> H[Test Connection]
+    C --> I[Validate Config]
+    C --> J[Error Handling]
+    
+    D --> K[Server List]
+    D --> L[Active Server]
+    D --> M[Server Status]
+```
+
+### useChatHistory
+**Location**: `src/hooks/useChatHistory.tsx`
+**Purpose**: Manage chat history and interactions
+**Features**:
+- Chat history management
+- Message persistence
+- Context management
+- Model integration
+
+```mermaid
+graph TD
+    A[useChatHistory] --> B[History Management]
+    A --> C[Message Handling]
+    A --> D[Context Management]
+    
+    B --> E[Load History]
+    B --> F[Save History]
+    B --> G[Clear History]
+    
+    C --> H[Add Message]
+    C --> I[Update Message]
+    C --> J[Delete Message]
+    
+    D --> K[Context Building]
+    D --> L[Context Limits]
+    D --> M[Context Updates]
+```
+
 ## Services
 
 ### cacheService
@@ -199,6 +283,62 @@ graph TD
     D --> K[Result Processing]
     D --> L[Error Handling]
     D --> M[Result Storage]
+```
+
+### lmStudioService
+**Location**: `src/services/lmStudioService.ts`
+**Purpose**: Handle LM Studio API interactions
+**Features**:
+- API request handling
+- Response processing
+- Error management
+- Rate limiting
+
+```mermaid
+graph TD
+    A[lmStudioService] --> B[API Operations]
+    A --> C[Response Processing]
+    A --> D[Error Handling]
+    
+    B --> E[Chat Completion]
+    B --> F[Model Info]
+    B --> G[Config Validation]
+    
+    C --> H[Stream Processing]
+    C --> I[Response Formatting]
+    C --> J[Cache Management]
+    
+    D --> K[Error Types]
+    D --> L[Retry Logic]
+    D --> M[Error Recovery]
+```
+
+### mcpService
+**Location**: `src/services/mcpService.ts`
+**Purpose**: Handle MCP server interactions
+**Features**:
+- Server communication
+- Authentication
+- Request routing
+- Response handling
+
+```mermaid
+graph TD
+    A[mcpService] --> B[Server Operations]
+    A --> C[Authentication]
+    A --> D[Request Handling]
+    
+    B --> E[Server Selection]
+    B --> F[Request Routing]
+    B --> G[Response Processing]
+    
+    C --> H[API Key Management]
+    C --> I[Token Handling]
+    C --> J[Auth Validation]
+    
+    D --> K[Request Formatting]
+    D --> L[Error Handling]
+    D --> M[Response Validation]
 ```
 
 ## Service Interactions

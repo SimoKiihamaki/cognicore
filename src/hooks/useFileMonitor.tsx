@@ -1,16 +1,25 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useLocalStorage } from './useLocalStorage';
-import { IndexedFile } from '@/lib/types';
-import { useToast } from '@/components/ui/use-toast';
-import { useNotes } from './useNotes';
+import { useToast } from './use-toast';
 import { useEmbeddings } from './useEmbeddings';
-import * as fileMonitor from '@/services/fileMonitor';
+import * as fileMonitor from '../services/fileMonitor';
 
 interface MonitoredFolder {
   id: string;
   path: string;
   handle: FileSystemDirectoryHandle;
   isActive: boolean;
+}
+
+interface IndexedFile {
+  id: string;
+  filename: string;
+  filepath: string;
+  filetype: string;
+  lastModified: Date;
+  size: number;
+  content?: string;
+  isDeleted: boolean;
 }
 
 // Filter options for file monitoring
@@ -48,7 +57,7 @@ export function useFileMonitor() {
   });
   
   const { toast } = useToast();
-  const { processAllContent } = useEmbeddings();
+  const { generateEmbeddingsForFile } = useEmbeddings();
   
   // Check if file system access is supported
   const isSupported = fileMonitor.isFileAccessSupported?.() || false;
@@ -93,7 +102,7 @@ export function useFileMonitor() {
     if (!isSupported) {
       toast({
         title: "Not Supported",
-        description: "File system monitoring is not supported in your browser.",
+        description: "File system monitoring is not supported in your browser. Please use a modern browser that supports the File System Access API.",
         variant: "destructive"
       });
       return;
@@ -111,91 +120,100 @@ export function useFileMonitor() {
     
     // Start monitoring each active folder
     activeFolders.forEach(folder => {
-      fileMonitor.addMonitoredFolder(folder.path, folder.handle);
-      
-      fileMonitor.startMonitoringFolder(
-        folder.path,
-        (changedFiles, eventType) => {
-          // Process files based on event type
-          if (eventType === 'initial') {
-            // Initial scan completed
-            if (changedFiles.length > 0) {
-              // Update indexed files with initial scan results
-              setIndexedFiles(prev => {
-                const existingIds = new Set(prev.map(file => file.id));
-                const uniqueNewFiles = changedFiles.filter(file => !existingIds.has(file.id));
-                
-                if (uniqueNewFiles.length > 0) {
+      try {
+        fileMonitor.addMonitoredFolder(folder.path, folder.handle);
+        
+        fileMonitor.startMonitoringFolder(
+          folder.path,
+          (changedFiles, eventType) => {
+            // Process files based on event type
+            if (eventType === 'initial') {
+              // Initial scan completed
+              if (changedFiles.length > 0) {
+                // Update indexed files with initial scan results
+                setIndexedFiles(prev => {
+                  const existingIds = new Set(prev.map(file => file.id));
+                  const uniqueNewFiles = changedFiles.filter(file => !existingIds.has(file.id));
+                  
+                  if (uniqueNewFiles.length > 0) {
+                    toast({
+                      title: "Initial Scan Complete",
+                      description: `Found ${uniqueNewFiles.length} files in "${folder.path}".`
+                    });
+                  }
+                  
+                  return [...prev, ...uniqueNewFiles];
+                });
+              }
+            } else if (eventType === 'changed') {
+              // Files changed or added
+              if (changedFiles.length > 0) {
+                setIndexedFiles(prev => {
+                  // Remove any existing versions of these files
+                  const filesToUpdate = new Set(changedFiles.map(file => file.filepath));
+                  const remainingFiles = prev.filter(file => !filesToUpdate.has(file.filepath));
+                  
                   toast({
-                    title: "Initial Scan Complete",
-                    description: `Found ${uniqueNewFiles.length} files in "${folder.path}".`
+                    title: "Files Updated",
+                    description: `${changedFiles.length} files changed in "${folder.path}".`
                   });
-                }
-                
-                return [...prev, ...uniqueNewFiles];
-              });
-            }
-          } else if (eventType === 'changed') {
-            // Files changed or added
-            if (changedFiles.length > 0) {
-              setIndexedFiles(prev => {
-                // Remove any existing versions of these files
-                const filesToUpdate = new Set(changedFiles.map(file => file.filepath));
-                const remainingFiles = prev.filter(file => !filesToUpdate.has(file.filepath));
-                
-                toast({
-                  title: "Files Updated",
-                  description: `${changedFiles.length} files changed in "${folder.path}".`
+                  
+                  return [...remainingFiles, ...changedFiles];
                 });
-                
-                return [...remainingFiles, ...changedFiles];
-              });
-            }
-          } else if (eventType === 'deleted') {
-            // Files deleted
-            if (changedFiles.length > 0) {
-              setIndexedFiles(prev => {
-                const deletedPaths = new Set(changedFiles.map(file => file.filepath));
-                const remainingFiles = prev.filter(file => !deletedPaths.has(file.filepath));
-                
-                toast({
-                  title: "Files Deleted",
-                  description: `${changedFiles.length} files removed from "${folder.path}".`
+              }
+            } else if (eventType === 'deleted') {
+              // Files deleted
+              if (changedFiles.length > 0) {
+                setIndexedFiles(prev => {
+                  const deletedPaths = new Set(changedFiles.map(file => file.filepath));
+                  const remainingFiles = prev.filter(file => !deletedPaths.has(file.filepath));
+                  
+                  toast({
+                    title: "Files Deleted",
+                    description: `${changedFiles.length} files removed from "${folder.path}".`
+                  });
+                  
+                  return remainingFiles;
                 });
-                
-                return remainingFiles;
-              });
-            }
-          }
-          
-          // Update folder stats
-          updateFolderStats();
-        },
-        {
-          intervalMs: monitoringOptions.scanInterval,
-          scanOptions: {
-            maxFileSize: monitoringOptions.maxFileSize,
-            textFilesOnly: monitoringOptions.textFilesOnly,
-            skipExcludedDirs: monitoringOptions.skipExcludedDirs,
-            includeAllFileTypes: monitoringOptions.includeAllFileTypes
-          },
-          errorCallback: (error) => {
-            // Show error toast on monitoring error, but only for significant errors
-            if (error.message.includes("permission") || 
-                error.message.includes("access denied") ||
-                error.message.includes("not found")) {
-              toast({
-                title: "Monitoring Error",
-                description: `Error in folder "${folder.path}": ${error.message}`,
-                variant: "destructive"
-              });
+              }
             }
             
-            // Update folder stats to show the error
+            // Update folder stats
             updateFolderStats();
+          },
+          {
+            intervalMs: monitoringOptions.scanInterval,
+            scanOptions: {
+              maxFileSize: monitoringOptions.maxFileSize,
+              textFilesOnly: monitoringOptions.textFilesOnly,
+              skipExcludedDirs: monitoringOptions.skipExcludedDirs,
+              includeAllFileTypes: monitoringOptions.includeAllFileTypes
+            },
+            errorCallback: (error) => {
+              // Show error toast on monitoring error, but only for significant errors
+              if (error.message.includes("permission") || 
+                  error.message.includes("access denied") ||
+                  error.message.includes("not found")) {
+                toast({
+                  title: "Monitoring Error",
+                  description: `Error in folder "${folder.path}": ${error.message}`,
+                  variant: "destructive"
+                });
+              }
+              
+              // Update folder stats to show the error
+              updateFolderStats();
+            }
           }
-        }
-      );
+        );
+      } catch (error) {
+        console.error(`Error starting monitoring for folder ${folder.path}:`, error);
+        toast({
+          title: "Monitoring Error",
+          description: `Failed to start monitoring folder "${folder.path}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive"
+        });
+      }
     });
     
     setIsMonitoring(true);
@@ -225,7 +243,7 @@ export function useFileMonitor() {
     if (!isSupported) {
       toast({
         title: "Not Supported",
-        description: "File system access is not supported in your browser.",
+        description: "File system access is not supported in your browser. Please use a modern browser that supports the File System Access API.",
         variant: "destructive"
       });
       return null;
@@ -234,12 +252,25 @@ export function useFileMonitor() {
     setIsLoading(true);
     
     try {
-      const directoryHandle = await fileMonitor.requestFolderAccess();
+      // Request folder access with better error handling
+      let directoryHandle;
+      try {
+        directoryHandle = await fileMonitor.requestFolderAccess();
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error accessing directory';
+        toast({
+          title: "Access Error",
+          description: errorMessage,
+          variant: "destructive"
+        });
+        return null;
+      }
       
+      // Additional check just to be sure
       if (!directoryHandle) {
         toast({
           title: "Access Denied",
-          description: "Permission to access the folder was denied.",
+          description: "Permission to access the folder was denied. Please try again and grant permission.",
           variant: "destructive"
         });
         return null;
@@ -289,28 +320,37 @@ export function useFileMonitor() {
       
       // If monitoring is active, start monitoring this folder too
       if (isMonitoring) {
-        fileMonitor.addMonitoredFolder(folderName, directoryHandle);
-        fileMonitor.startMonitoringFolder(
-          folderName,
-          (changedFiles) => {
-            // Process changed files (same as in startMonitoring)
-            if (changedFiles.length > 0) {
-              setIndexedFiles(prev => {
-                const existingIds = new Set(prev.map(file => file.id));
-                const uniqueNewFiles = changedFiles.filter(file => !existingIds.has(file.id));
-                
-                if (uniqueNewFiles.length > 0) {
-                  toast({
-                    title: "Files Updated",
-                    description: `${uniqueNewFiles.length} new or modified files detected.`
-                  });
-                }
-                
-                return [...prev, ...uniqueNewFiles];
-              });
+        try {
+          fileMonitor.addMonitoredFolder(folderName, directoryHandle);
+          fileMonitor.startMonitoringFolder(
+            folderName,
+            (changedFiles) => {
+              // Process changed files (same as in startMonitoring)
+              if (changedFiles.length > 0) {
+                setIndexedFiles(prev => {
+                  const existingIds = new Set(prev.map(file => file.id));
+                  const uniqueNewFiles = changedFiles.filter(file => !existingIds.has(file.id));
+                  
+                  if (uniqueNewFiles.length > 0) {
+                    toast({
+                      title: "Files Updated",
+                      description: `${uniqueNewFiles.length} new or modified files detected.`
+                    });
+                  }
+                  
+                  return [...prev, ...uniqueNewFiles];
+                });
+              }
             }
-          }
-        );
+          );
+        } catch (error) {
+          console.error(`Error starting monitoring for new folder ${folderName}:`, error);
+          toast({
+            title: "Monitoring Error",
+            description: `Failed to start monitoring new folder "${folderName}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+            variant: "destructive"
+          });
+        }
       }
       
       return newFolder;
@@ -420,45 +460,41 @@ export function useFileMonitor() {
     }
   }, [isMonitoring, stopMonitoring, startMonitoring, setMonitoringOptions]);
   
-  // Process all indexed files to generate embeddings
+  // Process all indexed files
   const processIndexedFiles = useCallback(async () => {
-    if (indexedFiles.length === 0) {
+    if (!isSupported) {
       toast({
-        title: "No Files to Process",
-        description: "No indexed files found to process."
+        title: "Not Supported",
+        description: "File system access is not supported in your browser. Please use a modern browser that supports the File System Access API.",
+        variant: "destructive"
       });
       return;
     }
-    
+
     setIsLoading(true);
-    
     try {
-      // Filter out binary files if we're only processing text files
-      const filesToProcess = monitoringOptions.textFilesOnly 
-        ? indexedFiles.filter(file => {
-            const extension = file.filename.split('.').pop()?.toLowerCase() || '';
-            return fileMonitor.TEXT_FILE_EXTENSIONS.includes(extension) || file.filetype.startsWith('text/');
-          })
-        : indexedFiles;
-      
-      // This will generate embeddings for all content including indexed files
-      await processAllContent();
-      
+      // Process each indexed file
+      for (const file of indexedFiles) {
+        if (!file.isDeleted) {
+          await generateEmbeddingsForFile(file.id);
+        }
+      }
+
       toast({
         title: "Processing Complete",
-        description: `Processed ${filesToProcess.length} indexed files.`
+        description: `Processed ${indexedFiles.length} files.`
       });
     } catch (error) {
-      console.error('Error processing indexed files:', error);
+      console.error('Error processing files:', error);
       toast({
         title: "Processing Error",
-        description: `Failed to process indexed files: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: `Failed to process files: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
     } finally {
       setIsLoading(false);
     }
-  }, [indexedFiles, monitoringOptions.textFilesOnly, processAllContent, toast]);
+  }, [indexedFiles, isSupported, generateEmbeddingsForFile, toast]);
   
   // Delete all indexed files for a specific folder
   const clearFolderFiles = useCallback((folderId: string) => {

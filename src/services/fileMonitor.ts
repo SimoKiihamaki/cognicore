@@ -1,10 +1,13 @@
-
 /**
  * File Monitor Service
  * Handles monitoring of file system directories for changes
  */
 import { v4 as uuidv4 } from 'uuid';
 import { extractTextFromFile } from '@/utils/fileUtils';
+import { FileMonitoringOptions } from '@/hooks/useFileMonitor';
+import { toast } from 'sonner';
+import { generateEmbeddingsForFile } from '@/utils/embeddings';
+import databaseService, { STORE_NAMES } from './database/databaseService';
 
 // File types constants
 export const TEXT_FILE_EXTENSIONS = [
@@ -26,111 +29,215 @@ export interface MonitoringStatus {
   lastError: string | null;
 }
 
+interface MonitoredFile {
+  id: string;
+  path: string;
+  handle: FileSystemFileHandle;
+  lastModified: number;
+  size: number;
+}
+
+interface MonitoredFolder {
+  id: string;
+  path: string;
+  handle: FileSystemDirectoryHandle;
+  files: Map<string, MonitoredFile>;
+  watcher?: FileSystemWatcher;
+  isActive: boolean;
+}
+
+interface FileSystemWatcher {
+  stop: () => void;
+}
+
+const monitoredFolders = new Map<string, MonitoredFolder>();
+
 // Check if file system access is supported
-export function isFileAccessSupported(): boolean {
+export const isFileAccessSupported = () => {
   return 'showDirectoryPicker' in window;
-}
+};
 
-// Request permission to access a directory
-export async function requestDirectoryAccess() {
-  try {
-    const dirHandle = await window.showDirectoryPicker();
-    return dirHandle;
-  } catch (error) {
-    console.error('Error accessing directory:', error);
-    return null;
-  }
-}
-
-// Alias for requestDirectoryAccess
-export const requestFolderAccess = requestDirectoryAccess;
-
-// Scan directory and get files
-export async function scanDirectory(
-  directoryHandle: FileSystemDirectoryHandle, 
-  basePath: string
-): Promise<any[]> {
-  const files = [];
-  
-  try {
-    // Use the FileMonitor class to scan
-    const monitor = new FileMonitor();
-    files.push(...await monitor.listFiles(directoryHandle, basePath));
-    
-    // Process files to match IndexedFile structure
-    return files.map(file => ({
-      id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      filename: file.name,
-      filepath: file.path,
-      filetype: file.name.split('.').pop()?.toLowerCase() || '',
-      lastModified: new Date(),
-      size: 0 // Would be set when getting actual file
-    }));
-  } catch (error) {
-    console.error(`Error scanning directory ${basePath}:`, error);
-    return [];
-  }
-}
-
-// Monitor storage for tracked folders
-const monitoredFolders = new Map<string, { handle: FileSystemDirectoryHandle, callbacks: any }>();
-
-// Add a folder to the monitor list
-export function addMonitoredFolder(path: string, handle: FileSystemDirectoryHandle): void {
-  monitoredFolders.set(path, { handle, callbacks: {} });
-}
-
-// Remove a folder from the monitor list
-export function removeMonitoredFolder(path: string): void {
-  monitoredFolders.delete(path);
-}
+// Add a folder to monitor
+export const addMonitoredFolder = async (path: string, handle: FileSystemDirectoryHandle) => {
+  const folderId = `folder-${Date.now()}`;
+  monitoredFolders.set(path, {
+    id: folderId,
+    path,
+    handle,
+    files: new Map(),
+    isActive: true
+  });
+};
 
 // Start monitoring a folder
-export function startMonitoringFolder(
+export const startMonitoringFolder = async (
   path: string,
   onChange: (files: any[], eventType: 'initial' | 'changed' | 'deleted') => void,
-  options: any = {}
-): void {
-  const folderInfo = monitoredFolders.get(path);
-  if (!folderInfo) {
-    console.error(`Cannot start monitoring ${path} - not in monitored folders`);
-    return;
+  options: {
+    intervalMs?: number;
+    scanOptions?: FileMonitoringOptions;
+    errorCallback?: (error: Error) => void;
+  } = {}
+) => {
+  const folder = monitoredFolders.get(path);
+  if (!folder) {
+    throw new Error(`Folder ${path} is not being monitored`);
   }
   
-  folderInfo.callbacks.onChange = onChange;
-  folderInfo.callbacks.options = options;
+  const {
+    intervalMs = 5000,
+    scanOptions = {
+      textFilesOnly: true,
+      maxFileSize: 5 * 1024 * 1024,
+      skipExcludedDirs: true,
+      includeAllFileTypes: false
+    },
+    errorCallback = console.error
+  } = options;
   
-  // Would implement actual monitoring logic here
-  console.log(`Started monitoring folder: ${path}`);
+  // Function to scan a file and update its state
+  const scanFile = async (fileHandle: FileSystemFileHandle, filePath: string) => {
+    try {
+      const file = await fileHandle.getFile();
+      const { lastModified, size } = file;
+      
+      // Check if file meets criteria
+      if (scanOptions.textFilesOnly && !file.type.startsWith('text/')) {
+        return null;
+      }
+      
+      if (size > scanOptions.maxFileSize) {
+        return null;
+      }
+      
+      // Get existing file record
+      const existingFile = folder.files.get(filePath);
+      
+      // If file hasn't changed, skip processing
+      if (existingFile && existingFile.lastModified === lastModified && existingFile.size === size) {
+        return null;
+      }
+      
+      // Read file content
+      const content = await file.text();
+      
+      // Generate embeddings
+      const embeddings = await generateEmbeddingsForFile(content);
+      
+      // Store file info
+      const fileInfo = {
+        id: `file-${Date.now()}`,
+        path: filePath,
+        handle: fileHandle,
+        lastModified,
+        size,
+        content,
+        embeddings
+      };
+      
+      // Update file record
+      folder.files.set(filePath, fileInfo);
+      
+      return fileInfo;
+    } catch (error) {
+      errorCallback(error as Error);
+      return null;
+    }
+  };
   
-  // Trigger initial scan
-  setTimeout(() => {
-    onChange([], 'initial');
-  }, 1000);
-}
+  // Function to scan the entire folder
+  const scanFolder = async () => {
+    try {
+      const changedFiles: any[] = [];
+      const deletedFiles: any[] = [];
+      const seenPaths = new Set<string>();
+      
+      // Scan all files in the folder
+      for await (const [name, handle] of folder.handle.entries()) {
+        if (handle.kind === 'file') {
+          const filePath = `${path}/${name}`;
+          seenPaths.add(filePath);
+          
+          const fileInfo = await scanFile(handle as FileSystemFileHandle, filePath);
+          if (fileInfo) {
+            changedFiles.push(fileInfo);
+          }
+        }
+      }
+      
+      // Check for deleted files
+      for (const [filePath] of folder.files) {
+        if (!seenPaths.has(filePath)) {
+          const fileInfo = folder.files.get(filePath);
+          if (fileInfo) {
+            deletedFiles.push(fileInfo);
+            folder.files.delete(filePath);
+          }
+        }
+      }
+      
+      // Notify about changes
+      if (changedFiles.length > 0) {
+        onChange(changedFiles, 'changed');
+      }
+      
+      if (deletedFiles.length > 0) {
+        onChange(deletedFiles, 'deleted');
+      }
+    } catch (error) {
+      errorCallback(error as Error);
+    }
+  };
+  
+  // Start periodic scanning
+  const intervalId = setInterval(scanFolder, intervalMs);
+  
+  // Store watcher info
+  folder.watcher = {
+    stop: () => clearInterval(intervalId)
+  };
+  
+  // Do initial scan
+  try {
+    const initialFiles: any[] = [];
+    
+    for await (const [name, handle] of folder.handle.entries()) {
+      if (handle.kind === 'file') {
+        const filePath = `${path}/${name}`;
+        const fileInfo = await scanFile(handle as FileSystemFileHandle, filePath);
+        if (fileInfo) {
+          initialFiles.push(fileInfo);
+        }
+      }
+    }
+    
+    if (initialFiles.length > 0) {
+      onChange(initialFiles, 'initial');
+    }
+  } catch (error) {
+    errorCallback(error as Error);
+  }
+};
 
 // Stop monitoring a folder
-export function stopMonitoringFolder(path: string): void {
-  const folderInfo = monitoredFolders.get(path);
-  if (!folderInfo) {
-    console.error(`Cannot stop monitoring ${path} - not in monitored folders`);
-    return;
+export const stopMonitoringFolder = (path: string) => {
+  const folder = monitoredFolders.get(path);
+  if (folder?.watcher) {
+    folder.watcher.stop();
+    folder.watcher = undefined;
   }
-  
-  // Would implement actual monitoring cleanup here
-  console.log(`Stopped monitoring folder: ${path}`);
-}
+};
 
-// Get monitoring status
-export function getMonitoringStatus(): MonitoringStatus[] {
-  return Array.from(monitoredFolders.entries()).map(([path, _]) => ({
+// Get monitoring status for all folders
+export const getMonitoringStatus = () => {
+  return Array.from(monitoredFolders.entries()).map(([path, folder]) => ({
     folderPath: path,
-    lastScanTime: new Date(),
-    fileCount: 0,
+    fileCount: folder.files.size,
+    lastScanTime: Date.now(),
     errorCount: 0,
     lastError: null
   }));
-}
+};
 
 // Types for file monitoring
 interface MonitoredFolder {
@@ -205,6 +312,11 @@ export class FileMonitor {
   
   // Add a new folder to monitor
   async addFolder(path: string, handle: FileSystemDirectoryHandle) {
+    if (!isFileAccessSupported()) {
+      console.error('File System Access API is not supported in this browser');
+      return null;
+    }
+
     // Check if folder already exists
     const existingFolder = this.folders.find(f => f.path === path);
     if (existingFolder) {
@@ -215,6 +327,7 @@ export class FileMonitor {
       id: uuidv4(),
       path,
       handle,
+      files: new Map(),
       isActive: true
     };
     

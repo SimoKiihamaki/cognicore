@@ -1,7 +1,133 @@
 # CogniCore Project Overview
 
-## Introduction
-CogniCore is a sophisticated note-taking and knowledge management application built with React, TypeScript, and modern web technologies. It features a rich set of capabilities including real-time note editing, graph visualization, offline support, and AI-powered features.
+## Project Overview
+
+CogniCore is a modern note-taking and knowledge management application with AI integration capabilities. The application leverages LM Studio for local AI model integration and provides a rich set of features for note management, visualization, and interaction.
+
+### Core Features
+1. **Note Management**
+   - Rich text editing with Markdown support
+   - Folder organization
+   - Tag system
+   - Auto-save functionality
+
+2. **AI Integration**
+   - LM Studio integration for local AI models
+   - Multi-model support (primary and secondary models)
+   - Vision capabilities (optional)
+   - Chat interface with context awareness
+
+3. **Knowledge Graph**
+   - Interactive visualization
+   - Relationship mapping
+   - Dynamic updates
+   - Search capabilities
+
+### Technical Stack
+- **Frontend**: React with TypeScript
+- **UI Framework**: shadcn/ui components
+- **State Management**: React Query & Context
+- **Storage**: IndexedDB & Local Storage
+- **AI Integration**: LM Studio API
+- **Embedding**: Local embedding service
+
+### Project Structure
+```mermaid
+graph TD
+    A[src/] --> B[components/]
+    A --> C[hooks/]
+    A --> D[services/]
+    A --> E[utils/]
+    A --> F[routes/]
+    A --> G[api/]
+    A --> H[lib/]
+    
+    B --> B1[ui/]
+    B --> B2[chat/]
+    B --> B3[layout/]
+    B --> B4[settings/]
+    B --> B5[graph/]
+    
+    C --> C1[useLocalStorage]
+    C --> C2[useChatHistory]
+    C --> C3[useEmbeddings]
+    
+    D --> D1[cacheService]
+    D --> D2[databaseService]
+    D --> D3[workerPoolService]
+    
+    G --> G1[lmStudioApi]
+    G --> G2[mcpApi]
+```
+
+### Key Components
+1. **App.tsx**: Main application entry point
+   - Providers setup (Query, Router, Services)
+   - Route configuration
+   - Error boundaries
+   - Core service initialization
+
+2. **MainLayout.tsx**: Primary layout component
+   - Responsive layout management
+   - Sidebar integration
+   - Chat interface integration
+   - Section navigation
+
+3. **Core Features**
+   - `ChatInterface`: AI interaction
+   - `NoteEditor`: Content management
+   - `GraphVisualization`: Knowledge mapping
+   - `ServerConfig`: LM Studio configuration
+
+### State Management
+The application uses a combination of:
+- React Query for server state
+- Context for shared state
+- Local storage for persistence
+- IndexedDB for large datasets
+
+### Development Guidelines
+1. **Component Structure**
+   - Use functional components
+   - Implement TypeScript types
+   - Follow shadcn/ui patterns
+   - Maintain proper error boundaries
+
+2. **State Management**
+   - Use React Query for async data
+   - Implement custom hooks
+   - Maintain clean data flow
+   - Handle offline capabilities
+
+3. **Code Organization**
+   - Group by feature
+   - Maintain clear interfaces
+   - Document complex logic
+   - Follow consistent patterns
+
+### Getting Started
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Configure LM Studio connection
+4. Start development server: `npm run dev`
+
+### Configuration
+1. **LM Studio Setup**
+   - Configure base URL (default: http://localhost:1234)
+   - Set API key (if required)
+   - Configure primary and secondary models
+   - Enable vision capabilities (optional)
+
+2. **Development Mode**
+   - Set environment variables
+   - Configure development tools
+   - Enable debug features
+
+### Contributing
+1. Follow TypeScript guidelines
+2. Maintain test coverage
+3. Document changes
+4. Follow commit conventions
 
 ## Tech Stack
 - **Frontend Framework**: React 18 with TypeScript

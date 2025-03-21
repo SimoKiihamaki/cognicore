@@ -1,4 +1,242 @@
-# Data Models and Types Documentation
+# Data Models Documentation
+
+## Core Models
+
+### LM Studio Configuration
+```typescript
+interface LMStudioConfig {
+  baseUrl: string;
+  apiKey?: string;
+  primaryModelName: string;
+  secondaryModelName: string;
+  supportsVision?: boolean;
+  temperature: number;
+  topP: number;
+  topK: number;
+  maxTokens: number;
+  useVision: boolean;
+}
+```
+
+### MCP Server
+```typescript
+interface MCPServer {
+  id: string;
+  name: string;
+  url: string;
+  apiKey: string;
+  isActive: boolean;
+  requiresAuthentication?: boolean;
+}
+```
+
+### Model Preset
+```typescript
+interface ModelPreset {
+  name: string;
+  modelName: string;
+  contextLength: number;
+  description: string;
+  category: 'open' | 'proprietary';
+  tags: string[];
+  recommendedSettings?: {
+    temperature?: number;
+    topP?: number;
+    topK?: number;
+    maxTokens?: number;
+  };
+}
+```
+
+### Chat Message
+```typescript
+interface ChatMessage {
+  id: string;
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  metadata?: {
+    model?: string;
+    tokens?: number;
+    processingTime?: number;
+  };
+}
+```
+
+### Chat History
+```typescript
+interface ChatHistory {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: Date;
+  updatedAt: Date;
+  model: string;
+  settings: {
+    temperature: number;
+    maxTokens: number;
+    topP: number;
+    topK: number;
+  };
+}
+```
+
+## Data Flow
+
+### Chat Flow
+```mermaid
+sequenceDiagram
+    participant UI
+    participant ChatInterface
+    participant LMStudioAPI
+    participant Storage
+    
+    UI->>ChatInterface: Send Message
+    ChatInterface->>LMStudioAPI: Process Request
+    LMStudioAPI->>Storage: Save Message
+    LMStudioAPI-->>ChatInterface: Stream Response
+    ChatInterface-->>UI: Update View
+    ChatInterface->>Storage: Save History
+```
+
+### Model Selection Flow
+```mermaid
+sequenceDiagram
+    participant UI
+    participant Config
+    participant API
+    participant Storage
+    
+    UI->>Config: Select Model
+    Config->>API: Validate Model
+    API-->>Config: Model Status
+    Config->>Storage: Save Config
+    Storage-->>UI: Update View
+```
+
+## Data Storage
+
+### LocalStorage Schema
+```typescript
+interface LocalStorageSchema {
+  'lmStudio-config': LMStudioConfig;
+  'mcp-servers': MCPServer[];
+  'chat-histories': ChatHistory[];
+  'model-presets': ModelPreset[];
+  'app-settings': {
+    theme: string;
+    fontSize: number;
+    autoSave: boolean;
+    offline: boolean;
+  };
+}
+```
+
+### Cache Structure
+```typescript
+interface CacheStructure {
+  models: {
+    [modelName: string]: {
+      info: any;
+      lastChecked: Date;
+    };
+  };
+  responses: {
+    [messageId: string]: {
+      response: string;
+      timestamp: Date;
+    };
+  };
+  configs: {
+    [serverId: string]: {
+      status: 'active' | 'inactive';
+      lastChecked: Date;
+    };
+  };
+}
+```
+
+## Data Validation
+
+### Config Validation
+```typescript
+const configSchema = z.object({
+  baseUrl: z.string().url(),
+  apiKey: z.string().optional(),
+  primaryModelName: z.string(),
+  secondaryModelName: z.string(),
+  temperature: z.number().min(0).max(1),
+  topP: z.number().min(0).max(1),
+  topK: z.number().min(1),
+  maxTokens: z.number().min(1),
+  useVision: z.boolean()
+});
+```
+
+### Message Validation
+```typescript
+const messageSchema = z.object({
+  id: z.string().uuid(),
+  role: z.enum(['system', 'user', 'assistant']),
+  content: z.string(),
+  timestamp: z.date(),
+  metadata: z.object({
+    model: z.string().optional(),
+    tokens: z.number().optional(),
+    processingTime: z.number().optional()
+  }).optional()
+});
+```
+
+## Error Handling
+
+### API Errors
+```typescript
+enum LMStudioErrorType {
+  CONNECTION_ERROR = 'CONNECTION_ERROR',
+  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
+  INVALID_REQUEST = 'INVALID_REQUEST',
+  MODEL_ERROR = 'MODEL_ERROR',
+  RATE_LIMIT = 'RATE_LIMIT',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
+}
+
+interface LMStudioError {
+  type: LMStudioErrorType;
+  message: string;
+  details?: any;
+}
+```
+
+### Data Migration
+
+```typescript
+interface MigrationPlan {
+  version: number;
+  steps: {
+    source: 'localStorage' | 'indexedDB';
+    target: 'indexedDB';
+    transform: (data: any) => any;
+  }[];
+}
+```
+
+## Performance Considerations
+
+1. **Caching Strategy**
+   - Model information caching
+   - Response caching
+   - Config persistence
+
+2. **Storage Optimization**
+   - Message compression
+   - History pruning
+   - Cache invalidation
+
+3. **Data Loading**
+   - Lazy loading
+   - Pagination
+   - Background updates
 
 ## Core Data Models
 

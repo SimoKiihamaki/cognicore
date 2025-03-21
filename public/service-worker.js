@@ -3,8 +3,9 @@
  * Provides offline functionality, caching, and background sync
  */
 
-// Cache name and version
-const CACHE_NAME = 'cognicore-cache-v1';
+// Cache name with timestamp to force updates when new versions are deployed
+const CACHE_NAME = 'cognicore-cache-v2-' + new Date().toISOString().slice(0, 10);
+const RUNTIME_CACHE = 'cognicore-runtime';
 
 // Assets to cache on install
 const STATIC_ASSETS = [
@@ -15,12 +16,32 @@ const STATIC_ASSETS = [
   '/embedding-worker.js'
 ];
 
+// Check if we're in development mode
+const IS_DEV = self.location.hostname === 'localhost' || 
+               self.location.hostname === '127.0.0.1' ||
+               self.location.port === '8080' || 
+               self.location.port === '8081' || 
+               self.location.port === '8082' ||
+               self.location.port === '5173';
+
+// Skip caching in development mode
+const shouldCache = !IS_DEV;
+
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
+  console.log(`Service worker installing (${IS_DEV ? 'Development' : 'Production'} mode)`);
+  
+  // Skip caching in development
+  if (!shouldCache) {
+    console.log('Development mode: skipping cache setup');
+    self.skipWaiting();
+    return;
+  }
+  
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Service worker installing - caching static assets');
+        console.log('Caching static assets');
         return cache.addAll(STATIC_ASSETS);
       })
       .then(() => self.skipWaiting()) // Activate immediately
@@ -29,13 +50,24 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
+  console.log('Service worker activating');
+  
+  // Skip cache cleanup in development
+  if (!shouldCache) {
+    console.log('Development mode: skipping cache cleanup');
+    self.clients.claim();
+    return;
+  }
+  
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.filter((cacheName) => {
-            return cacheName !== CACHE_NAME;
+            // Keep current cache and runtime cache
+            return cacheName !== CACHE_NAME && cacheName !== RUNTIME_CACHE;
           }).map((cacheName) => {
+            console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           })
         );
@@ -44,29 +76,38 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache if available, otherwise fetch from network
+// Fetch event - in development mode, always use network
 self.addEventListener('fetch', (event) => {
+  // Skip cache handling in development mode - always use network
+  if (IS_DEV) {
+    return;
+  }
+  
   // Skip cross-origin requests
   if (!event.request.url.startsWith(self.location.origin)) {
     return;
   }
   
-  // Skip LM Studio API requests (they can't be cached)
-  if (event.request.url.includes('/v1/chat/completions')) {
+  // Skip API requests that shouldn't be cached
+  if (event.request.url.includes('/v1/chat/completions') || 
+      event.request.url.includes('/v1/models')) {
     return;
   }
   
-  // Handle API requests differently from static assets
-  if (event.request.url.includes('/api/')) {
-    // For API requests, try network first, then cache
+  // Handle JavaScript, CSS and HTML files - network first with cache fallback
+  if (event.request.url.endsWith('.js') || 
+      event.request.url.endsWith('.css') || 
+      event.request.url.endsWith('.html') ||
+      event.request.url.endsWith('/')) {
+    
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // Cache the response
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME)
+          // Cache the fresh response
+          const responseToCache = response.clone();
+          caches.open(RUNTIME_CACHE)
             .then((cache) => {
-              cache.put(event.request, responseClone);
+              cache.put(event.request, responseToCache);
             });
           return response;
         })
@@ -76,7 +117,7 @@ self.addEventListener('fetch', (event) => {
         })
     );
   } else {
-    // For static assets, try cache first, then network
+    // For other assets (images, fonts, etc), try cache first
     event.respondWith(
       caches.match(event.request)
         .then((response) => {
@@ -94,7 +135,7 @@ self.addEventListener('fetch', (event) => {
               
               // Clone the response to cache it
               const responseToCache = response.clone();
-              caches.open(CACHE_NAME)
+              caches.open(RUNTIME_CACHE)
                 .then((cache) => {
                   cache.put(event.request, responseToCache);
                 });
@@ -159,17 +200,39 @@ async function syncNotes() {
   return Promise.resolve();
 }
 
+// Development mode utility function to unregister service worker
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  
+  if (event.data && event.data.type === 'CLEAR_CACHES') {
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          console.log('Clearing cache:', cacheName);
+          return caches.delete(cacheName);
+        })
+      );
+    }).then(() => {
+      event.ports[0].postMessage({ result: 'Caches cleared successfully' });
+    });
+  }
+});
+
 // Send heartbeat message to clients
 setInterval(() => {
   self.clients.matchAll().then(clients => {
     clients.forEach(client => {
       client.postMessage({
         type: 'HEARTBEAT',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        mode: IS_DEV ? 'development' : 'production',
+        caching: shouldCache ? 'enabled' : 'disabled'
       });
     });
   });
 }, 60000); // Every minute
 
 // Log when service worker is ready
-console.log('Service worker loaded and ready');
+console.log(`Service worker loaded and ready (${IS_DEV ? 'Development' : 'Production'} mode)`);

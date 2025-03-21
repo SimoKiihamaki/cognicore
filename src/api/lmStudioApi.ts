@@ -1,17 +1,25 @@
 import { ChatMessage } from '@/lib/types';
+import { proxyFetch, proxyFetchJson, ProxyError } from './corsProxy';
 
 export interface LMStudioConfig {
   baseUrl: string;
   apiKey?: string;
   primaryModelName: string;
   secondaryModelName: string;
+  supportsVision?: boolean;
+}
+
+export type ContentItem = 
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
+export interface LMStudioChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string | ContentItem[];
 }
 
 export interface LMStudioChatRequest {
-  messages: {
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-  }[];
+  messages: LMStudioChatMessage[];
   model: string;
   temperature?: number;
   max_tokens?: number;
@@ -112,10 +120,170 @@ export class LMStudioService {
   }
 
   /**
+   * Check if a model supports vision capabilities
+   * This uses a simple heuristic based on model name and should be improved
+   * with more reliable detection methods as they become available
+   */
+  modelSupportsVision(modelName: string): boolean {
+    // Common multimodal models that support vision
+    const knownVisionModels = [
+      'gemma-3', 'gemma3',
+      'llava', 
+      'bakllava',
+      'obsidian',
+      'claude-3', 'claude3',
+      'qwen-vl', 'qwen-vision',
+      'cogvlm',
+      'deepseek-vl',
+      'phi-3-vision', 'phi3-vision',
+      'fuyu'
+    ];
+    
+    // Check if model name contains any known vision model identifiers
+    return knownVisionModels.some(visionModel => 
+      modelName.toLowerCase().includes(visionModel.toLowerCase())
+    );
+  }
+
+  /**
    * Get the full API endpoint URL
    */
   private getApiUrl(): string {
-    return `${this.config.baseUrl.replace(/\/$/, '')}/v1/chat/completions`;
+    // Ensure URL is properly formed with http(s) prefix
+    let baseUrl = this.config.baseUrl.trim();
+    
+    // Add protocol if missing
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+      baseUrl = `http://${baseUrl}`;
+    }
+    
+    // Remove trailing slashes
+    baseUrl = baseUrl.replace(/\/+$/, '');
+    
+    // Always append the completions endpoint
+    return `${baseUrl}/v1/chat/completions`;
+  }
+
+  /**
+   * Send a vision request to the LM Studio API
+   * @param prompt The text prompt describing what to do with the image
+   * @param imageFiles Array of image files to process
+   * @param useDetailedModel Whether to use the primary (detailed) model or secondary (quick) model
+   * @returns The assistant's response content
+   * @throws LMStudioError on failure
+   */
+  async sendVisionRequest(
+    prompt: string,
+    imageFiles: File[],
+    useDetailedModel: boolean = true
+  ): Promise<string> {
+    // Check if vision is supported
+    if (!this.config.supportsVision) {
+      throw new LMStudioError(
+        'Vision capabilities not supported by the selected model',
+        LMStudioErrorType.MODEL
+      );
+    }
+
+    // Determine which model to use
+    const model = useDetailedModel 
+      ? this.config.primaryModelName 
+      : this.config.secondaryModelName;
+    
+    if (!model) {
+      throw new LMStudioError(
+        'Model name not specified',
+        LMStudioErrorType.MODEL
+      );
+    }
+
+    try {
+      // Create multimodal content with text and images
+      const multimodalContent = await this.createMultimodalMessage(prompt, imageFiles);
+      
+      // Format the request data
+      const requestData: LMStudioChatRequest = {
+        messages: [
+          {
+            role: 'user',
+            content: multimodalContent
+          }
+        ],
+        model,
+        temperature: 0.7,
+        max_tokens: 2000
+      };
+
+      try {
+        // Use our proxy fetch with better CORS and error handling
+        const data = await proxyFetchJson<LMStudioChatResponse>(this.getApiUrl(), {
+          method: 'POST',
+          headers: this.createHeaders(),
+          body: JSON.stringify(requestData),
+          timeout: this.requestTimeout
+        });
+        
+        // Extract the assistant's response content
+        if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+          return data.choices[0].message.content;
+        }
+        
+        throw new LMStudioError(
+          'No response content received from LM Studio',
+          LMStudioErrorType.RESPONSE,
+          response.status,
+          data
+        );
+      } catch (error) {
+        // Map proxy errors to LM Studio errors
+        if (error instanceof ProxyError) {
+          let errorType: LMStudioErrorType;
+          
+          switch (error.type) {
+            case 'timeout':
+              errorType = LMStudioErrorType.TIMEOUT;
+              break;
+            case 'cors':
+            case 'network':
+              errorType = LMStudioErrorType.CONNECTION;
+              break;
+            case 'parse':
+              errorType = LMStudioErrorType.RESPONSE;
+              break;
+            default:
+              errorType = LMStudioErrorType.UNKNOWN;
+          }
+          
+          throw new LMStudioError(
+            error.message,
+            errorType,
+            error.status,
+            error
+          );
+        }
+        
+        // Handle other errors
+        console.error('Failed to communicate with LM Studio:', error);
+        throw new LMStudioError(
+          error instanceof Error ? error.message : String(error),
+          LMStudioErrorType.UNKNOWN,
+          undefined,
+          error
+        );
+      }
+    } catch (error) {
+      // Handle image processing errors
+      if (!(error instanceof LMStudioError)) {
+        console.error('Error in vision request:', error);
+        throw new LMStudioError(
+          `Vision request failed: ${error instanceof Error ? error.message : String(error)}`,
+          LMStudioErrorType.REQUEST,
+          undefined,
+          error
+        );
+      }
+      throw error;
+    }
   }
 
   /**
@@ -146,57 +314,62 @@ export class LMStudioService {
    */
   async testConnection(): Promise<boolean> {
     try {
-      // First try a lightweight OPTIONS request
-      const optionsResponse = await fetch(this.getApiUrl(), {
-        method: 'OPTIONS',
-        headers: this.createHeaders(),
-      });
+      console.log('Testing LM Studio connection to:', this.getApiUrl());
       
-      if (optionsResponse.ok) {
-        return true;
-      }
-      
-      // If OPTIONS fails, try a minimal POST request to more reliably test the API
-      const testRequest: LMStudioChatRequest = {
-        messages: [{ role: 'user', content: 'test' }],
-        model: this.config.primaryModelName,
-        max_tokens: 1
-      };
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for test
-      
+      // First, try a more lightweight GET request to check if the server is reachable
+      // Many LLM servers support a simpler health check endpoint
       try {
-        const response = await fetch(this.getApiUrl(), {
-          method: 'POST',
+        // Extract base URL without the completions endpoint
+        const baseUrl = this.getApiUrl().replace(/\/v1\/chat\/completions$/, '');
+        const healthUrl = `${baseUrl}/health`;
+        
+        console.log('Trying health check endpoint:', healthUrl);
+        const healthResponse = await fetch(healthUrl, {
+          method: 'GET',
           headers: this.createHeaders(),
-          body: JSON.stringify(testRequest),
-          signal: controller.signal
+          // Using a short timeout for health check
+          signal: AbortSignal.timeout(2000)
         });
         
-        clearTimeout(timeoutId);
-        
-        // Check for common error scenarios
-        if (!response.ok) {
-          console.error('LM Studio test request failed:', {
-            status: response.status,
-            statusText: response.statusText
-          });
-          return false;
+        if (healthResponse.ok) {
+          console.log('LM Studio health check successful');
+          return true;
         }
-        
-        return true;
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
-          console.error('LM Studio test request timed out');
-        } else {
-          console.error('LM Studio test request failed:', fetchError);
-        }
-        return false;
+      } catch (healthError) {
+        console.log('LM Studio health check failed, trying main endpoint');
+        // Continue to try the main endpoint
       }
+      
+      // If the health check fails, try a minimal chat request
+      const testRequest: LMStudioChatRequest = {
+        messages: [{ role: 'user', content: 'test' }],
+        model: this.config.primaryModelName || 'default',
+        max_tokens: 1
+      };
+      
+      // Use our enhanced proxy fetch with 5 second timeout
+      const response = await proxyFetch(this.getApiUrl(), {
+        method: 'POST',
+        headers: this.createHeaders(),
+        body: JSON.stringify(testRequest),
+        timeout: 5000 // 5 second timeout for test
+      });
+      
+      // If we get here, the connection was successful
+      return true;
     } catch (error) {
-      console.error('LM Studio connection test failed:', error);
+      if (error instanceof ProxyError) {
+        // For 404 errors, the endpoint might be different - provide more helpful message
+        if (error.status === 404) {
+          console.error('LM Studio API endpoint not found. Please check your server configuration and ensure LM Studio is running.');
+        } else {
+          console.error(`LM Studio test connection failed (${error.type}): ${error.message}`);
+        }
+      } else {
+        console.error('LM Studio connection test failed:', error);
+      }
+      
+      // Return false rather than throwing to allow graceful degradation
       return false;
     }
   }
@@ -204,11 +377,79 @@ export class LMStudioService {
   /**
    * Convert application chat messages to LM Studio API format
    */
-  private formatChatMessages(messages: ChatMessage[]): LMStudioChatRequest['messages'] {
+  private formatChatMessages(messages: ChatMessage[]): LMStudioChatMessage[] {
     return messages.map(msg => ({
       role: msg.role,
       content: msg.content
     }));
+  }
+
+  /**
+   * Convert an image to base64 format
+   * @param file The image file to convert
+   * @returns Promise resolving to the base64 data URL
+   */
+  async imageToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result);
+        };
+        reader.onerror = (error) => {
+          reject(error);
+        };
+        reader.readAsDataURL(file);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Create a multimodal message with text and images
+   * @param text The text prompt
+   * @param imageFiles Array of image files to include
+   * @returns Promise resolving to a formatted message with text and images
+   */
+  async createMultimodalMessage(
+    text: string,
+    imageFiles: File[]
+  ): Promise<ContentItem[]> {
+    if (!this.config.supportsVision) {
+      throw new LMStudioError(
+        'Vision capabilities not supported by the selected model',
+        LMStudioErrorType.MODEL
+      );
+    }
+
+    // Start with the text content
+    const content: ContentItem[] = [
+      { type: 'text', text }
+    ];
+
+    // Process each image file
+    for (const file of imageFiles) {
+      try {
+        // Convert image to base64
+        const base64Url = await this.imageToBase64(file);
+        
+        // Add image to content
+        content.push({
+          type: 'image_url',
+          image_url: { url: base64Url }
+        });
+      } catch (error) {
+        console.error('Error processing image:', error);
+        throw new LMStudioError(
+          `Failed to process image: ${error instanceof Error ? error.message : String(error)}`,
+          LMStudioErrorType.REQUEST
+        );
+      }
+    }
+
+    return content;
   }
 
   /**
@@ -249,73 +490,14 @@ export class LMStudioService {
       requestData.context = similarContexts;
     }
 
-    // Set up request with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.requestTimeout);
-
     try {
-      const response = await fetch(this.getApiUrl(), {
+      // Use our proxy fetch with better CORS and error handling
+      const data = await proxyFetchJson<LMStudioChatResponse>(this.getApiUrl(), {
         method: 'POST',
         headers: this.createHeaders(),
         body: JSON.stringify(requestData),
-        signal: controller.signal
+        timeout: this.requestTimeout
       });
-
-      // Clear the timeout
-      clearTimeout(timeoutId);
-
-      // Handle error responses
-      if (!response.ok) {
-        let errorDetails: any;
-        try {
-          // Try to parse error as JSON
-          errorDetails = await response.json();
-        } catch {
-          // If not JSON, get as text
-          errorDetails = await response.text();
-        }
-        
-        // Determine error type based on status code
-        let errorType: LMStudioErrorType;
-        switch (response.status) {
-          case 401:
-          case 403:
-            errorType = LMStudioErrorType.AUTHENTICATION;
-            break;
-          case 404:
-            errorType = LMStudioErrorType.MODEL;
-            break;
-          case 400:
-            errorType = LMStudioErrorType.REQUEST;
-            break;
-          case 500:
-          case 502:
-          case 503:
-            errorType = LMStudioErrorType.SERVER;
-            break;
-          default:
-            errorType = LMStudioErrorType.UNKNOWN;
-        }
-        
-        throw new LMStudioError(
-          `LM Studio API error (${response.status}): ${response.statusText}`,
-          errorType,
-          response.status,
-          errorDetails
-        );
-      }
-
-      let data: LMStudioChatResponse;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        throw new LMStudioError(
-          'Failed to parse LM Studio response as JSON',
-          LMStudioErrorType.RESPONSE,
-          response.status,
-          parseError
-        );
-      }
       
       // Extract the assistant's response content
       if (data.choices && data.choices.length > 0 && data.choices[0].message) {
@@ -329,30 +511,34 @@ export class LMStudioService {
         data
       );
     } catch (error) {
-      // Clear the timeout if it's still active
-      clearTimeout(timeoutId);
-      
-      // Handle specific error types
-      if (error instanceof LMStudioError) {
-        // Re-throw LMStudioError instances
-        throw error;
-      } else if (error instanceof DOMException && error.name === 'AbortError') {
-        // Request was aborted due to timeout
+      // Map proxy errors to LM Studio errors
+      if (error instanceof ProxyError) {
+        let errorType: LMStudioErrorType;
+        
+        switch (error.type) {
+          case 'timeout':
+            errorType = LMStudioErrorType.TIMEOUT;
+            break;
+          case 'cors':
+          case 'network':
+            errorType = LMStudioErrorType.CONNECTION;
+            break;
+          case 'parse':
+            errorType = LMStudioErrorType.RESPONSE;
+            break;
+          default:
+            errorType = LMStudioErrorType.UNKNOWN;
+        }
+        
         throw new LMStudioError(
-          'Request to LM Studio timed out',
-          LMStudioErrorType.TIMEOUT
-        );
-      } else if (error instanceof TypeError && error.message.includes('fetch')) {
-        // Network error or CORS issue
-        throw new LMStudioError(
-          'Failed to connect to LM Studio server',
-          LMStudioErrorType.CONNECTION,
-          undefined,
+          error.message,
+          errorType,
+          error.status,
           error
         );
       }
       
-      // Generic error case
+      // Handle other errors
       console.error('Failed to communicate with LM Studio:', error);
       throw new LMStudioError(
         error instanceof Error ? error.message : String(error),
@@ -371,10 +557,31 @@ let lmStudioService: LMStudioService | null = null;
  * Initialize the LM Studio service with configuration
  */
 export function initializeLMStudioService(config: LMStudioConfig): LMStudioService {
+  // Check if primary or secondary model supports vision
+  const checkVisionSupport = (service: LMStudioService, config: LMStudioConfig) => {
+    // Determine if either primary or secondary model supports vision
+    const primarySupportsVision = config.primaryModelName 
+      ? service.modelSupportsVision(config.primaryModelName) 
+      : false;
+      
+    const secondarySupportsVision = config.secondaryModelName 
+      ? service.modelSupportsVision(config.secondaryModelName) 
+      : false;
+      
+    return {
+      ...config,
+      supportsVision: primarySupportsVision || secondarySupportsVision
+    };
+  };
+
   if (!lmStudioService) {
-    lmStudioService = new LMStudioService(config);
+    // Create new service with vision support check
+    const configWithVisionCheck = checkVisionSupport(new LMStudioService(config), config);
+    lmStudioService = new LMStudioService(configWithVisionCheck);
   } else {
-    lmStudioService.updateConfig(config);
+    // Update existing service with vision support check
+    const updatedConfig = checkVisionSupport(lmStudioService, config);
+    lmStudioService.updateConfig(updatedConfig);
   }
   
   return lmStudioService;

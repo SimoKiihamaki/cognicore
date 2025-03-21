@@ -2,24 +2,23 @@
 
 ## LM Studio Integration
 
-### API Client
+### Configuration
 ```typescript
 interface LMStudioConfig {
   baseUrl: string;
   apiKey?: string;
-  model: string;
-  temperature: number;
-  maxTokens: number;
+  primaryModelName: string;
+  secondaryModelName: string;
+  supportsVision?: boolean;
 }
 
-interface LMStudioResponse {
-  text: string;
-  usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
-  finishReason: string;
+interface MCPServer {
+  id: string;
+  name: string;
+  url: string;
+  apiKey: string;
+  isActive: boolean;
+  requiresAuthentication?: boolean;
 }
 ```
 
@@ -37,6 +36,9 @@ Request:
   model: string;
   temperature?: number;
   max_tokens?: number;
+  top_p?: number;
+  top_k?: number;
+  stream?: boolean;
 }
 
 Response:
@@ -85,6 +87,159 @@ Response:
   }>;
 }
 ```
+
+### Model Presets
+
+#### Open Source Models
+```typescript
+const openSourceModelPresets = [
+  {
+    name: "Mixtral 8x7B Instruct v0.1",
+    modelName: "Mixtral-8x7B-Instruct-v0.1",
+    contextLength: 32768,
+    description: "Mistral AI's mixture-of-experts model with 8 experts",
+    category: "open",
+    tags: ["high-performance", "instruction-tuned", "mixture-of-experts"],
+    recommendedSettings: {
+      temperature: 0.7,
+      topP: 0.9,
+      maxTokens: 2048
+    }
+  },
+  {
+    name: "Dolphin 2.9 Mistral 7B",
+    modelName: "dolphin-2.9-mistral-7b",
+    contextLength: 8192,
+    description: "Dolphin fine-tuned version of Mistral 7B",
+    category: "open",
+    tags: ["conversational", "instruction-tuned", "fine-tuned"],
+    recommendedSettings: {
+      temperature: 0.7,
+      topP: 0.9,
+      maxTokens: 1024
+    }
+  }
+];
+```
+
+#### Proprietary Models
+```typescript
+const proprietaryModelPresets = [
+  {
+    name: "GPT-4",
+    modelName: "gpt-4",
+    contextLength: 128000,
+    description: "OpenAI's most advanced model",
+    category: "proprietary",
+    tags: ["high-performance", "high-quality"],
+    recommendedSettings: {
+      temperature: 0.7,
+      topP: 0.95,
+      maxTokens: 2048
+    }
+  },
+  {
+    name: "GPT-3.5 Turbo",
+    modelName: "gpt-3.5-turbo",
+    contextLength: 16384,
+    description: "OpenAI's efficient model",
+    category: "proprietary",
+    tags: ["efficient", "fast", "cost-effective"],
+    recommendedSettings: {
+      temperature: 0.7,
+      topP: 0.9,
+      maxTokens: 1024
+    }
+  }
+];
+```
+
+### Error Handling
+
+```typescript
+enum LMStudioErrorType {
+  CONNECTION_ERROR = 'CONNECTION_ERROR',
+  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
+  INVALID_REQUEST = 'INVALID_REQUEST',
+  MODEL_ERROR = 'MODEL_ERROR',
+  RATE_LIMIT = 'RATE_LIMIT',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
+}
+
+interface LMStudioError {
+  type: LMStudioErrorType;
+  message: string;
+  details?: any;
+}
+```
+
+### API Flow Diagrams
+
+#### Chat Flow
+```mermaid
+sequenceDiagram
+    participant UI
+    participant ChatInterface
+    participant LMStudioAPI
+    participant LMStudio
+    
+    UI->>ChatInterface: Send Message
+    ChatInterface->>LMStudioAPI: Prepare Request
+    LMStudioAPI->>LMStudio: Send Request
+    LMStudio-->>LMStudioAPI: Stream Response
+    LMStudioAPI-->>ChatInterface: Process Response
+    ChatInterface-->>UI: Update Chat
+```
+
+#### Model Selection Flow
+```mermaid
+sequenceDiagram
+    participant UI
+    participant Config
+    participant LMStudioAPI
+    participant Models
+    
+    UI->>Config: Update Model
+    Config->>LMStudioAPI: Validate Model
+    LMStudioAPI->>Models: Check Availability
+    Models-->>LMStudioAPI: Model Status
+    LMStudioAPI-->>Config: Update Config
+    Config-->>UI: Reflect Changes
+```
+
+### Security Considerations
+
+1. **API Key Management**
+   - Secure storage in localStorage
+   - Optional authentication
+   - Key validation on connection
+
+2. **Request Validation**
+   - Input sanitization
+   - Parameter validation
+   - Rate limiting support
+
+3. **Error Handling**
+   - Graceful degradation
+   - User feedback
+   - Retry mechanisms
+
+### Performance Optimization
+
+1. **Caching Strategy**
+   - Response caching
+   - Model info caching
+   - Config persistence
+
+2. **Connection Management**
+   - Connection pooling
+   - Keep-alive support
+   - Reconnection logic
+
+3. **Resource Usage**
+   - Stream processing
+   - Memory management
+   - Background processing
 
 ## File System API
 

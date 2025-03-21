@@ -1,299 +1,251 @@
+/**
+ * Custom hook for using the embedding service
+ */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useToast } from '@/components/ui/use-toast';
-import { useNotes } from './useNotes';
-import { Note } from '@/lib/types';
-import { initializeEmbeddingService, getEmbeddingService, findSimilarNotes, EmbeddingResult } from '@/utils/embeddings';
+import embeddingService, { SimilarityResult } from '@/services/embedding/embeddingService';
+import { useToast } from './use-toast';
 
-interface UseEmbeddingsOptions {
-  autoEmbed?: boolean;
-  autoEmbedDelay?: number;
-  similarityThreshold?: number;
-  maxResults?: number;
+export interface EmbeddingProgress {
+  current: number;
+  total: number;
+  percentage: number;
+  message: string;
 }
 
-export function useEmbeddings(options: UseEmbeddingsOptions = {}) {
-  const { 
-    autoEmbed = true, 
-    autoEmbedDelay = 1000,
-    similarityThreshold = 0.7,
-    maxResults = 10
-  } = options;
+export function useEmbeddings() {
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  const [isInitializing, setIsInitializing] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [progress, setProgress] = useState<EmbeddingProgress | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   const { toast } = useToast();
-  const { notes, updateNote } = useNotes();
-  
-  const [isEmbeddingInitialized, setIsEmbeddingInitialized] = useState(false);
-  const [isEmbeddingInitializing, setIsEmbeddingInitializing] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [modelName, setModelName] = useState('');
-  const [embeddingQueue, setEmbeddingQueue] = useState<string[]>([]);
-  const [progress, setProgress] = useState(0);
-  const [statusMessage, setStatusMessage] = useState('');
-  const [totalItems, setTotalItems] = useState(0);
-  const [processedItems, setProcessedItems] = useState(0);
-  const [serviceError, setServiceError] = useState<string | null>(null);
-  
+
   // Initialize embedding service
-  useEffect(() => {
-    const initializeEmbeddings = async () => {
-      if (isEmbeddingInitialized || isEmbeddingInitializing) return;
+  const initialize = useCallback(async (modelName?: string) => {
+    try {
+      setIsInitializing(true);
+      setError(null);
       
-      setIsEmbeddingInitializing(true);
-      try {
-        await initializeEmbeddingService();
-        setIsEmbeddingInitialized(true);
-        setStatusMessage('Embedding service initialized successfully');
-        console.log('Embedding service initialized successfully');
-      } catch (error) {
-        console.error('Failed to initialize embedding service:', error);
-        setServiceError(error instanceof Error ? error.message : 'Unknown error');
+      const successInfo = await embeddingService.initialize(modelName, (update) => {
+        setProgress({
+          current: 0,
+          total: 1,
+          percentage: 0,
+          message: update.status
+        });
+      });
+      
+      setIsInitialized(successInfo);
+      
+      if (!successInfo) {
+        setError('Failed to initialize embedding service');
         toast({
-          title: 'Embedding Error',
-          description: 'Failed to initialize embedding service. Some features may be limited.',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsEmbeddingInitializing(false);
-      }
-    };
-    
-    initializeEmbeddings();
-  }, [toast]);
-  
-  // Generate embeddings for a single text
-  const generateEmbedding = useCallback(async (text: string): Promise<number[] | null> => {
-    if (!isEmbeddingInitialized) {
-      console.warn('Embedding service not initialized');
-      return null;
-    }
-    
-    try {
-      const embeddingService = getEmbeddingService();
-      return await embeddingService.embedText(text);
-    } catch (error) {
-      console.error('Error generating embedding:', error);
-      return null;
-    }
-  }, [isEmbeddingInitialized]);
-  
-  // Generate embeddings for multiple texts in batch
-  const generateEmbeddings = useCallback(async (texts: string[]): Promise<EmbeddingResult[]> => {
-    if (!isEmbeddingInitialized) {
-      console.warn('Embedding service not initialized');
-      return texts.map((_, i) => ({ id: i.toString(), embedding: [], success: false }));
-    }
-    
-    if (texts.length === 0) return [];
-    
-    setIsGenerating(true);
-    const results: EmbeddingResult[] = [];
-    
-    try {
-      const embeddingService = getEmbeddingService();
-      const embeddings = await embeddingService.embedTexts(texts);
-      
-      // Create results with success status
-      for (let i = 0; i < texts.length; i++) {
-        results.push({
-          id: i.toString(), // Replace with actual note id in real usage
-          embedding: embeddings[i],
-          success: true
+          title: 'Initialization Failed',
+          description: 'Failed to initialize embedding service',
+          variant: 'destructive'
         });
       }
-    } catch (error) {
-      console.error('Error generating batch embeddings:', error);
       
-      // Add failed results
-      for (let i = 0; i < texts.length; i++) {
-        if (!results.some(r => r.id === i.toString())) {
-          results.push({
-            id: i.toString(),
-            embedding: [],
-            success: false
-          });
-        }
-      }
+      return successInfo;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      toast({
+        title: 'Initialization Error',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive'
+      });
+      return false;
     } finally {
-      setIsGenerating(false);
+      setIsInitializing(false);
+      setProgress(null);
     }
-    
-    return results;
-  }, [isEmbeddingInitialized]);
-  
-  // Generate embeddings for notes that don't have them
-  const generateEmbeddingsForNotes = useCallback(async (noteIds: string[] = []): Promise<void> => {
-    if (!isEmbeddingInitialized) {
-      console.warn('Embedding service not initialized');
-      return;
-    }
-    
-    // Get notes that need embeddings
-    const notesToEmbed = noteIds.length > 0
-      ? notes.filter(note => noteIds.includes(note.id) && note.content)
-      : notes.filter(note => !note.embeddings && note.content);
-    
-    if (notesToEmbed.length === 0) return;
-    
-    setIsGenerating(true);
-    
+  }, [toast]);
+
+  // Generate embeddings for a single note
+  const generateEmbeddingForNote = useCallback(async (noteId: string) => {
     try {
-      // Extract content from notes
-      const noteTexts = notesToEmbed.map(note => note.content);
+      setIsProcessing(true);
+      setError(null);
+      return await embeddingService.generateEmbeddingsForNote(noteId, (progress) => {
+        setProgress({
+          current: progress,
+          total: 100,
+          percentage: progress,
+          message: `Generating embeddings: ${progress}%`
+        });
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      return false;
+    } finally {
+      setIsProcessing(false);
+      setProgress(null);
+    }
+  }, []);
+
+  // Generate embeddings for multiple notes
+  const generateEmbeddingsForNotes = useCallback(async (noteIds: string[]) => {
+    try {
+      setIsProcessing(true);
+      setError(null);
+      return await embeddingService.generateEmbeddingsForNotes(noteIds, (progress) => {
+        setProgress({
+          current: progress,
+          total: 100,
+          percentage: progress,
+          message: `Generating embeddings: ${progress}%`
+        });
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      return { success: false, processed: 0, failed: noteIds.length };
+    } finally {
+      setIsProcessing(false);
+      setProgress(null);
+    }
+  }, []);
+
+  // Generate embeddings for a file
+  const generateEmbeddingsForFile = useCallback(async (fileId: string) => {
+    try {
+      setIsProcessing(true);
+      setError(null);
       
-      // Generate embeddings in batch
-      const embeddingService = getEmbeddingService();
-      const embeddings = await embeddingService.embedTexts(noteTexts);
+      const success = await embeddingService.generateEmbeddingsForFile(fileId, (p) => {
+        setProgress({
+          current: Math.round(p * 100),
+          total: 100,
+          percentage: p,
+          message: `Generating embeddings: ${Math.round(p * 100)}%`
+        });
+      });
       
-      // Update notes with embeddings
-      for (let i = 0; i < notesToEmbed.length; i++) {
-        const noteId = notesToEmbed[i].id;
-        await updateNote(noteId, { embeddings: embeddings[i] });
+      if (!success) {
+        setError('Failed to generate embeddings');
+        toast({
+          title: 'Embedding Generation Failed',
+          description: 'Failed to generate embeddings for the file',
+          variant: 'destructive'
+        });
       }
       
-      console.log(`Generated embeddings for ${notesToEmbed.length} notes`);
-    } catch (error) {
-      console.error('Error generating embeddings for notes:', error);
+      return success;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(errorMsg);
       toast({
         title: 'Embedding Error',
-        description: 'Failed to generate embeddings for some notes.',
-        variant: 'destructive',
+        description: errorMsg,
+        variant: 'destructive'
       });
+      return false;
     } finally {
-      setIsGenerating(false);
+      setIsProcessing(false);
+      setProgress(null);
     }
-  }, [isEmbeddingInitialized, notes, updateNote, toast]);
-  
-  // Generate embeddings for a specific note
-  const generateNoteEmbeddings = useCallback(async (noteId: string): Promise<void> => {
-    await generateEmbeddingsForNotes([noteId]);
-  }, [generateEmbeddingsForNotes]);
-  
-  // Find similar notes based on a query
-  const findSimilar = useCallback(async (
-    query: string,
-    options: {
-      threshold?: number;
-      maxResults?: number;
-      noteIds?: string[];
-    } = {}
-  ): Promise<Note[]> => {
-    const { 
-      threshold = similarityThreshold, 
-      maxResults: maxResultsOption = maxResults,
-      noteIds
-    } = options;
-    
-    if (!isEmbeddingInitialized) {
-      console.warn('Embedding service not initialized');
-      return [];
-    }
-    
+  }, [toast]);
+
+  // Find similar content
+  const findSimilarContent = useCallback(async (
+    sourceId: string,
+    similarityThreshold: number = 0.7,
+    limit: number = 5
+  ): Promise<SimilarityResult[]> => {
     try {
-      // Generate embedding for query
-      const queryEmbedding = await generateEmbedding(query);
-      if (!queryEmbedding) return [];
+      setIsProcessing(true);
+      setError(null);
       
-      // Filter notes if noteIds provided
-      const candidateNotes = noteIds 
-        ? notes.filter(note => noteIds.includes(note.id))
-        : notes;
-      
-      // Find similar notes
-      return findSimilarNotes(
-        query,
-        candidateNotes,
-        queryEmbedding,
-        threshold,
-        maxResultsOption
+      const results = await embeddingService.findSimilarContent(
+        sourceId,
+        similarityThreshold,
+        limit
       );
-    } catch (error) {
-      console.error('Error finding similar notes:', error);
-      return [];
-    }
-  }, [isEmbeddingInitialized, generateEmbedding, notes, similarityThreshold, maxResults]);
-  
-  // Process all content (notes, files, etc.)
-  const processAllContent = useCallback(async (): Promise<void> => {
-    if (!isEmbeddingInitialized) {
-      console.warn('Embedding service not initialized');
-      return;
-    }
-    
-    setIsProcessing(true);
-    setProgress(0);
-    setStatusMessage('Processing content...');
-    setTotalItems(notes.length);
-    setProcessedItems(0);
-    
-    try {
-      // Process all notes first
-      await generateEmbeddingsForNotes();
       
-      // Update progress
-      setProgress(100);
-      setProcessedItems(notes.length);
-      setStatusMessage('Content processing complete');
-    } catch (error) {
-      console.error('Error processing content:', error);
-      setServiceError(error instanceof Error ? error.message : 'Unknown error');
-      setStatusMessage('Error processing content');
+      return results;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(errorMsg);
+      return [];
     } finally {
       setIsProcessing(false);
     }
-  }, [isEmbeddingInitialized, notes, generateEmbeddingsForNotes]);
-  
-  // Change the embedding model
-  const changeEmbeddingModel = useCallback(async (newModelName: string): Promise<boolean> => {
-    if (newModelName === modelName) return true;
-    
-    setIsEmbeddingInitializing(true);
-    setStatusMessage(`Changing model to ${newModelName}...`);
-    
+  }, []);
+
+  // Semantic search
+  const semanticSearch = useCallback(async (
+    query: string,
+    similarityThreshold: number = 0.6,
+    limit: number = 10
+  ): Promise<SimilarityResult[]> => {
     try {
-      // Reset existing embedding service
-      setIsEmbeddingInitialized(false);
+      setIsProcessing(true);
+      setError(null);
       
-      // Initialize with new model
-      await initializeEmbeddingService();
+      const results = await embeddingService.semanticSearch(
+        query,
+        similarityThreshold,
+        limit
+      );
       
-      setModelName(newModelName);
-      setIsEmbeddingInitialized(true);
-      setStatusMessage(`Model changed to ${newModelName}`);
+      return results;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(errorMsg);
+      return [];
+    } finally {
+      setIsProcessing(false);
+    }
+  }, []);
+
+  // Delete embeddings for a source
+  const deleteEmbeddings = useCallback(async (
+    sourceId: string,
+    sourceType: 'note' | 'file'
+  ): Promise<boolean> => {
+    try {
+      setIsProcessing(true);
+      setError(null);
       
-      return true;
-    } catch (error) {
-      console.error('Error changing embedding model:', error);
-      setServiceError(error instanceof Error ? error.message : 'Unknown error');
-      setStatusMessage('Error changing model');
+      const success = await embeddingService.deleteEmbeddingsForSource(sourceId, sourceType);
+      
+      if (!success) {
+        setError('Failed to delete embeddings');
+        toast({
+          title: 'Deletion Failed',
+          description: 'Failed to delete embeddings',
+          variant: 'destructive'
+        });
+      }
+      
+      return success;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(errorMsg);
+      toast({
+        title: 'Deletion Error',
+        description: errorMsg,
+        variant: 'destructive'
+      });
       return false;
     } finally {
-      setIsEmbeddingInitializing(false);
+      setIsProcessing(false);
     }
-  }, [modelName]);
-  
+  }, [toast]);
+
   return {
-    isEmbeddingInitialized,
-    isEmbeddingInitializing,
-    isGenerating,
-    generateEmbedding,
-    generateEmbeddings,
-    generateEmbeddingsForNotes,
-    generateNoteEmbeddings,
-    findSimilar,
-    modelName,
-    // Added properties
+    isInitialized,
+    isInitializing,
     isProcessing,
-    processAllContent,
     progress,
-    statusMessage,
-    totalItems,
-    processedItems,
-    serviceError,
-    changeEmbeddingModel,
-    // Alias properties for backward compatibility
-    isInitialized: isEmbeddingInitialized,
-    isInitializing: isEmbeddingInitializing
+    error,
+    initialize,
+    generateEmbeddingForNote,
+    generateEmbeddingsForNotes,
+    generateEmbeddingsForFile,
+    findSimilarContent,
+    semanticSearch,
+    deleteEmbeddings
   };
 }

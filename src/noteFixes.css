@@ -1,0 +1,41 @@
+/* Note Visibility Fixes */
+
+/* Ensure notes in folder tree are visible and stand out */
+.folder-tree-note {
+  background-color: rgba(var(--primary-rgb), 0.1) !important;
+  padding: 0.5rem 0.75rem !important;
+  margin-bottom: 0.25rem !important;
+  border-radius: 0.375rem !important;
+  font-weight: 500 !important;
+  display: flex !important;
+  align-items: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.folder-tree-note:hover {
+  background-color: rgba(var(--primary-rgb), 0.2) !important;
+}
+
+.folder-tree-note.active {
+  background-color: rgba(var(--primary-rgb), 0.3) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* Make folder icons more visible */
+.folder-icon {
+  color: hsl(var(--primary)) !important;
+}
+
+/* Ensure proper spacing for folder content */
+.folder-content {
+  margin-left: 0.75rem !important;
+  padding-left: 0.75rem !important;
+  border-left: 1px solid rgba(var(--border-rgb), 0.5) !important;
+}
+
+/* Critical fix - ensure notes are actually displaying by giving minimum height */
+.notes-container > div {
+  min-height: 30px !important;
+  padding: 4px 0 !important;
+}

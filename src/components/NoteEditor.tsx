@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 
 // Import refactored components
 import EditorHeader from './note-editor/EditorHeader';
-import FolderPath from './note-editor/FolderPath';
+import { FolderPath } from './note-editor/FolderPath';
 import EditorContent from './note-editor/EditorContent';
 import EditorFooter from './note-editor/EditorFooter';
 import DeleteNoteDialog from './note-editor/DeleteNoteDialog';
@@ -41,10 +41,9 @@ const NoteEditor = () => {
   } = useFolders();
 
   const {
-    generateEmbedding,
-    generateEmbeddings,
+    generateEmbeddingForNote,
     generateEmbeddingsForNotes,
-    isGenerating
+    isProcessing
   } = useEmbeddings();
   
   const similarNotes = useCallback(() => {
@@ -98,55 +97,31 @@ const NoteEditor = () => {
   }, [title, content]);
   
   const handleSave = async () => {
-    if (!title.trim()) {
-      toast.error('Please add a title to save your note.');
-      return;
-    }
-    
-    setSavedStatus('saving');
-    
     try {
-      if (currentNoteId) {
-        updateNote(currentNoteId, {
-          title,
-          content,
-          folderId: selectedFolderId
-        });
-      } else {
-        const newNoteId = addNote(title, content, selectedFolderId);
-        setCurrentNoteId(newNoteId);
+      setSavedStatus('saving');
+      
+      // Save the note first
+      const noteId = currentNoteId || getNote(title)?.id;
+      if (noteId) {
+        await updateNote(noteId, { title, content, folderId: selectedFolderId });
+        
+        // Generate embeddings if needed
+        if (processingEmbeddings) {
+          const success = await generateEmbeddingForNote(noteId);
+          if (success) {
+            toast.success("The note's embeddings have been generated successfully.");
+          } else {
+            toast.error("Failed to generate embeddings for the note.");
+          }
+        }
       }
       
       setSavedStatus('saved');
-      toast.success('Note saved successfully');
-      
-      if (currentNoteId || currentNoteId !== null) {
-        setProcessingEmbeddings(true);
-        try {
-          const noteId = currentNoteId || getNote(title)?.id;
-          if (noteId) {
-            const embedding = await generateEmbedding(content);
-            if (embedding && noteId) {
-              updateNote(noteId, { embeddings: embedding });
-            }
-          }
-        } catch (error) {
-          console.error('Failed to generate embeddings:', error);
-        } finally {
-          setProcessingEmbeddings(false);
-        }
-      }
     } catch (error) {
-      console.error('Failed to save note:', error);
-      toast.error('Failed to save note. Please try again.');
+      console.error('Error saving note:', error);
       setSavedStatus('unsaved');
+      toast.error("Failed to save the note.");
     }
-    
-    setTimeout(() => {
-      if (savedStatus === 'saved') {
-        setSavedStatus('unsaved');
-      }
-    }, 5000);
   };
   
   const handleDeleteNote = () => {

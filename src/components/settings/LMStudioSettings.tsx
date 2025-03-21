@@ -248,10 +248,10 @@ interface LMStudioConfig {
 
 // Default configuration
 const defaultConfig: LMStudioConfig = {
-  baseUrl: 'http://localhost:1234',
+  baseUrl: 'http://192.168.1.180:1234',
   apiKey: '',
-  primaryModelName: 'Meta-Llama-3-8B-Instruct',
-  secondaryModelName: 'Phi-3-mini-4k-instruct',
+  primaryModelName: 'gemma-3-27b-it',
+  secondaryModelName: 'gemma-3-4b-it',
   embeddingModelName: 'Xenova/all-MiniLM-L6-v2',
   connectionMode: 'local',
   temperature: 0.7,
@@ -362,10 +362,23 @@ const LMStudioSettings = () => {
 
   // Handle input changes
   const handleChange = (field: keyof LMStudioConfig, value: any) => {
-    setConfig(prevConfig => ({
-      ...prevConfig,
-      [field]: value
-    }));
+    // Update the config state
+    setConfig(prevConfig => {
+      const newConfig = {
+        ...prevConfig,
+        [field]: value
+      };
+      
+      // Also directly update localStorage to ensure it's saved immediately
+      localStorage.setItem('lmStudio-config', JSON.stringify(newConfig));
+      
+      // For URL changes, mark connection status as untested
+      if (field === 'baseUrl') {
+        setConnectionStatus('untested');
+      }
+      
+      return newConfig;
+    });
     
     // Reset selected preset when changing models
     if (['primaryModelName', 'secondaryModelName'].includes(field)) {

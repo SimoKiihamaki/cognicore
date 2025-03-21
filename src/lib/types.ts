@@ -36,6 +36,19 @@ export interface ChatMessage {
   referencedContexts?: string[];
 }
 
+export interface ChatHistory {
+  id: string;
+  title: string;
+  summary: string;
+  messages: ChatMessage[];
+  createdAt: Date;
+  updatedAt: Date;
+  modelUsed: string;
+  tags?: string[];
+  isStarred?: boolean;
+  hasImages?: boolean;
+}
+
 export interface LMStudioConfig {
   baseUrl: string;
   apiKey: string;
@@ -116,4 +129,20 @@ export interface SimilarityResult {
   title: string;
   type: ContentItemType;
   similarity: number;
+}
+
+export interface Embedding {
+  id: string;
+  noteId: string;
+  vector: number[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  color?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }

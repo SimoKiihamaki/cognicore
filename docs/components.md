@@ -46,23 +46,23 @@ graph TD
 ```
 
 ### ChatInterface
-**Location**: `src/components/ChatInterface.tsx`
-**Purpose**: AI interaction interface
+**Location**: `src/components/chat/EnhancedChatInterface.tsx`
+**Purpose**: AI interaction interface with LM Studio integration
 **Features**:
-- Real-time chat
-- Message history
-- Context awareness
+- Real-time chat with streaming
+- Multi-model support
+- Message history management
 - Code highlighting
+- Vision capabilities (optional)
 
 ```mermaid
 graph TD
-    A[ChatInterface] --> B[Message List]
-    A --> C[Input Area]
-    A --> D[Context Manager]
-    B --> E[Message Rendering]
-    C --> F[Input Validation]
-    D --> G[Context Gathering]
-    D --> H[History Management]
+    A[EnhancedChatInterface] --> B[MessageList]
+    A --> C[InputArea]
+    A --> D[ModelSelector]
+    B --> E[MessageRenderer]
+    C --> F[StreamProcessor]
+    D --> G[ModelConfig]
 ```
 
 ### Sidebar
@@ -83,6 +83,64 @@ graph TD
     B --> F[Folder Actions]
     C --> G[Search Results]
     D --> H[Section Links]
+```
+
+### ServerConfig
+**Location**: `src/components/settings/ServerConfig.tsx`
+**Purpose**: LM Studio and MCP server configuration
+**Features**:
+- Server management
+- Model configuration
+- Connection testing
+- API key management
+
+```mermaid
+graph TD
+    A[ServerConfig] --> B[LMStudioConfig]
+    A --> C[MCPConfig]
+    B --> D[ModelPresets]
+    B --> E[ConnectionTest]
+    C --> F[ServerList]
+    C --> G[ServerEditor]
+```
+
+### MainLayout
+**Location**: `src/components/layout/MainLayout.tsx`
+**Purpose**: Primary application layout
+**Features**:
+- Responsive layout
+- Sidebar integration
+- Chat interface
+- Section navigation
+
+```mermaid
+graph TD
+    A[MainLayout] --> B[Sidebar]
+    A --> C[Header]
+    A --> D[Content]
+    A --> E[ChatPanel]
+    B --> F[Navigation]
+    C --> G[Actions]
+    D --> H[Routes]
+```
+
+### ModelSettings
+**Location**: `src/components/settings/ModelSettings.tsx`
+**Purpose**: Model configuration and management
+**Features**:
+- Model selection
+- Parameter configuration
+- Preset management
+- Connection status
+
+```mermaid
+graph TD
+    A[ModelSettings] --> B[ModelSelector]
+    A --> C[ParameterConfig]
+    A --> D[PresetManager]
+    B --> E[ModelList]
+    C --> F[Settings]
+    D --> G[Presets]
 ```
 
 ## UI Components
@@ -119,29 +177,23 @@ graph TD
 
 ```mermaid
 graph TD
-    A[App] --> B[Index]
+    A[App] --> B[MainLayout]
     B --> C[Sidebar]
     B --> D[Header]
-    B --> E[Main Content]
-    E --> F[NoteEditor]
-    E --> G[GraphVisualization]
-    E --> H[ChatInterface]
-    E --> I[SettingsPanel]
+    B --> E[Content]
+    B --> F[ChatPanel]
     
-    C --> J[FolderTree]
-    C --> K[SearchBar]
+    C --> G[Navigation]
+    C --> H[FolderTree]
     
-    D --> L[ThemeSwitcher]
-    D --> M[UserMenu]
+    D --> I[Actions]
+    D --> J[UserMenu]
     
-    F --> N[MarkdownEditor]
-    F --> O[Preview]
+    E --> K[Routes]
+    E --> L[ErrorBoundary]
     
-    G --> P[CytoscapeGraph]
-    G --> Q[LayoutControls]
-    
-    H --> R[MessageList]
-    H --> S[InputArea]
+    F --> M[EnhancedChat]
+    F --> N[ModelSettings]
 ```
 
 ## Component State Management
@@ -153,13 +205,13 @@ graph TD
     A --> D[Query State]
     
     B --> E[useState]
-    B --> F[useReducer]
+    B --> F[useLocalStorage]
     
-    C --> G[FoldersContext]
-    C --> H[ThemeContext]
+    C --> G[ServiceContext]
+    C --> H[ConfigContext]
     
-    D --> I[Notes Query]
-    D --> J[Settings Query]
+    D --> I[ChatQueries]
+    D --> J[ModelQueries]
 ```
 
 ## Component Lifecycle
@@ -169,18 +221,18 @@ sequenceDiagram
     participant Component
     participant Hooks
     participant Services
-    participant Storage
+    participant API
     
     Component->>Hooks: Mount
     Hooks->>Services: Initialize
-    Services->>Storage: Load Data
-    Storage-->>Component: Update
+    Services->>API: Connect
+    API-->>Component: Update
     
     loop User Interaction
-        Component->>Hooks: Update State
-        Hooks->>Services: Process
-        Services->>Storage: Save
-        Storage-->>Component: Refresh
+        Component->>Services: Request
+        Services->>API: Process
+        API-->>Services: Response
+        Services-->>Component: Update
     end
     
     Component->>Hooks: Unmount
@@ -208,24 +260,36 @@ graph TD
 ## Best Practices
 
 1. **Component Structure**
-   - Keep components focused and single-responsibility
-   - Use TypeScript interfaces for props
-   - Implement proper error boundaries
-   - Follow React hooks best practices
+   - Use functional components
+   - Implement TypeScript types
+   - Follow shadcn/ui patterns
+   - Maintain error boundaries
 
-2. **Performance**
-   - Use React.memo for expensive renders
-   - Implement proper key props
-   - Lazy load when appropriate
+2. **State Management**
+   - Use appropriate hooks
+   - Implement proper caching
+   - Handle loading states
+   - Manage side effects
+
+3. **Performance**
+   - Implement memoization
    - Optimize re-renders
+   - Handle async operations
+   - Manage resources
 
-3. **Accessibility**
-   - Use semantic HTML
-   - Implement ARIA attributes
-   - Ensure keyboard navigation
-   - Maintain color contrast
+4. **Error Handling**
+   - Use error boundaries
+   - Provide feedback
+   - Handle edge cases
+   - Log errors properly
 
-4. **Testing**
+5. **Accessibility**
+   - Follow ARIA patterns
+   - Support keyboard
+   - Manage focus
+   - Test with tools
+
+6. **Testing**
    - Write unit tests for logic
    - Implement integration tests
    - Test edge cases

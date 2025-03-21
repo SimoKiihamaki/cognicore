@@ -5,13 +5,38 @@ import { organizeNotes } from '@/utils/noteOrganizer';
 import { useNotes } from '@/hooks/useNotes';
 import { useFolders } from '@/hooks/useFolders';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useState, useEffect } from 'react';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 interface ContentOrganizationProps {
-  settings: Settings;
-  onUpdateSettings: (field: keyof Settings, value: any) => void;
+  onChange?: () => void;
 }
 
-const ContentOrganization = ({ settings, onUpdateSettings }: ContentOrganizationProps) => {
+const ContentOrganization = ({ onChange }: ContentOrganizationProps) => {
+  // Initialize default settings from localStorage
+  const [settings, setSettings] = useLocalStorage<Settings>('cognicore-settings', {
+    lmStudioBaseUrl: '',
+    lmStudioApiKey: '',
+    primaryModelName: '',
+    secondaryModelName: '',
+    folderPaths: [],
+    similarityThreshold: 0.75,
+    autoOrganizeNotes: false,
+    embeddingModelName: 'Xenova/all-MiniLM-L6-v2'
+  });
+
+  // Update settings helper function
+  const onUpdateSettings = (field: keyof Settings, value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    
+    // Notify parent component of change if onChange callback is provided
+    if (onChange) {
+      onChange();
+    }
+  };
   const { notes, indexedFiles, updateNote } = useNotes();
   const { folders } = useFolders();
   

@@ -101,6 +101,16 @@ class CacheService {
   ): T | undefined {
     if (!this.isInitialized) this.initialize();
     
+    // Ensure stats exist for this namespace
+    if (!this.stats[namespace]) {
+      this.stats[namespace] = {
+        hits: 0,
+        misses: 0,
+        size: 0,
+        lastCleaned: null
+      };
+    }
+    
     const cacheKey = this.getCacheKey(namespace, key);
     const entry = this.cache[cacheKey];
     

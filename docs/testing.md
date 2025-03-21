@@ -9,24 +9,32 @@
    - Hook testing
    - Service testing
    - Utility function testing
+   - LM Studio integration testing
+   - MCP server testing
 
 2. **Integration Tests**
    - Component integration
    - Service integration
    - API integration
    - Database operations
+   - LM Studio API integration
+   - MCP server integration
 
 3. **End-to-End Tests**
    - User flows
    - Critical paths
    - Edge cases
    - Error scenarios
+   - Chat completion flows
+   - Model selection flows
 
 4. **Performance Tests**
    - Load testing
    - Stress testing
    - Memory leak detection
    - Response time measurement
+   - API response times
+   - Model loading times
 
 ## Test Structure
 
@@ -37,6 +45,7 @@ graph TD
     A --> C[Hooks]
     A --> D[Services]
     A --> E[Utils]
+    A --> F[API]
     
     B --> B1[Component Tests]
     B --> B2[Snapshot Tests]
@@ -49,6 +58,9 @@ graph TD
     
     E --> E1[Function Tests]
     E --> E2[Type Tests]
+    
+    F --> F1[LM Studio Tests]
+    F --> F2[MCP Tests]
 ```
 
 ### Test File Structure
@@ -58,15 +70,24 @@ src/
     components/
       NoteEditor.test.tsx
       GraphVisualization.test.tsx
+      ChatInterface.test.tsx
+      ServerConfig.test.tsx
     hooks/
       useNotes.test.tsx
       useFolders.test.tsx
+      useLMStudio.test.tsx
+      useMCPServers.test.tsx
     services/
       cacheService.test.ts
       fileMonitor.test.ts
+      lmStudioService.test.ts
+      mcpService.test.ts
     utils/
       validation.test.ts
       formatting.test.ts
+    api/
+      lmStudioApi.test.ts
+      mcpApi.test.ts
 ```
 
 ## Testing Tools
@@ -123,139 +144,365 @@ export const mockFileSystem = {
   showOpenFilePicker: jest.fn(),
   showSaveFilePicker: jest.fn(),
 };
+
+export const mockLMStudio = {
+  chatCompletion: jest.fn(),
+  getModels: jest.fn(),
+  validateConfig: jest.fn(),
+};
+
+export const mockMCP = {
+  sendRequest: jest.fn(),
+  validateServer: jest.fn(),
+  getServerStatus: jest.fn(),
+};
 ```
 
 ## Component Testing
 
-### Component Test Example
+### LM Studio Component Test Example
 ```typescript
-describe('NoteEditor', () => {
-  it('renders with initial content', () => {
+describe('ServerConfig', () => {
+  it('renders with initial config', () => {
     const { getByRole } = render(
-      <NoteEditor initialContent="Test content" />
+      <ServerConfig initialConfig={{
+        baseUrl: 'http://localhost:1234',
+        primaryModelName: 'test-model',
+        secondaryModelName: 'test-model-2'
+      }} />
     );
     
-    expect(getByRole('textbox')).toHaveValue('Test content');
+    expect(getByRole('textbox', { name: /base url/i })).toHaveValue('http://localhost:1234');
+    expect(getByRole('combobox', { name: /primary model/i })).toHaveValue('test-model');
   });
   
-  it('handles content changes', async () => {
+  it('handles config changes', async () => {
     const onChange = jest.fn();
     const { getByRole } = render(
-      <NoteEditor onChange={onChange} />
+      <ServerConfig onChange={onChange} />
     );
     
-    const editor = getByRole('textbox');
-    await userEvent.type(editor, 'New content');
+    const baseUrlInput = getByRole('textbox', { name: /base url/i });
+    await userEvent.type(baseUrlInput, 'http://localhost:5678');
     
-    expect(onChange).toHaveBeenCalledWith('New content');
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      baseUrl: 'http://localhost:5678'
+    }));
   });
   
-  it('saves content on blur', async () => {
-    const onSave = jest.fn();
-    const { getByRole } = render(
-      <NoteEditor onSave={onSave} />
+  it('validates connection', async () => {
+    const { getByRole, findByText } = render(
+      <ServerConfig />
     );
     
-    const editor = getByRole('textbox');
-    await userEvent.type(editor, 'Content to save');
-    await userEvent.tab();
+    const testButton = getByRole('button', { name: /test connection/i });
+    await userEvent.click(testButton);
     
-    expect(onSave).toHaveBeenCalledWith('Content to save');
+    const status = await findByText(/connection successful/i);
+    expect(status).toBeInTheDocument();
+  });
+});
+```
+
+### MCP Component Test Example
+```typescript
+describe('MCPServerList', () => {
+  it('renders server list', () => {
+    const servers = [
+      { id: '1', name: 'Test Server', url: 'http://test.com' }
+    ];
+    
+    const { getByText } = render(
+      <MCPServerList servers={servers} />
+    );
+    
+    expect(getByText('Test Server')).toBeInTheDocument();
+    expect(getByText('http://test.com')).toBeInTheDocument();
+  });
+  
+  it('handles server selection', async () => {
+    const onSelect = jest.fn();
+    const { getByRole } = render(
+      <MCPServerList onSelect={onSelect} />
+    );
+    
+    const server = getByRole('button', { name: /test server/i });
+    await userEvent.click(server);
+    
+    expect(onSelect).toHaveBeenCalledWith('1');
+  });
+  
+  it('validates server configuration', async () => {
+    const { getByRole, findByText } = render(
+      <MCPServerList />
+    );
+    
+    const addButton = getByRole('button', { name: /add server/i });
+    await userEvent.click(addButton);
+    
+    const urlInput = getByRole('textbox', { name: /server url/i });
+    await userEvent.type(urlInput, 'invalid-url');
+    
+    const error = await findByText(/invalid url/i);
+    expect(error).toBeInTheDocument();
   });
 });
 ```
 
 ## Hook Testing
 
-### Hook Test Example
+### LM Studio Hook Test Example
 ```typescript
-describe('useNotes', () => {
-  it('creates a new note', async () => {
-    const { result } = renderHook(() => useNotes());
+describe('useLMStudio', () => {
+  it('loads configuration', async () => {
+    const { result } = renderHook(() => useLMStudio());
     
     await act(async () => {
-      await result.current.createNote({
-        title: 'Test Note',
-        content: 'Test Content',
-      });
+      await result.current.loadConfig();
     });
     
-    expect(result.current.notes).toHaveLength(1);
-    expect(result.current.notes[0].title).toBe('Test Note');
+    expect(result.current.config).toBeDefined();
+    expect(result.current.config.baseUrl).toBe('http://localhost:1234');
   });
   
-  it('updates an existing note', async () => {
-    const { result } = renderHook(() => useNotes());
-    
-    const note = await result.current.createNote({
-      title: 'Original Title',
-      content: 'Original Content',
-    });
+  it('validates model selection', async () => {
+    const { result } = renderHook(() => useLMStudio());
     
     await act(async () => {
-      await result.current.updateNote(note.id, {
-        title: 'Updated Title',
+      await result.current.selectModel('test-model');
+    });
+    
+    expect(result.current.selectedModel).toBe('test-model');
+    expect(result.current.isValid).toBe(true);
+  });
+  
+  it('handles connection errors', async () => {
+    const { result } = renderHook(() => useLMStudio());
+    
+    await act(async () => {
+      await result.current.testConnection();
+    });
+    
+    expect(result.current.error).toBeDefined();
+    expect(result.current.isConnected).toBe(false);
+  });
+});
+```
+
+### MCP Hook Test Example
+```typescript
+describe('useMCPServers', () => {
+  it('manages server list', async () => {
+    const { result } = renderHook(() => useMCPServers());
+    
+    await act(async () => {
+      await result.current.addServer({
+        name: 'Test Server',
+        url: 'http://test.com',
+        apiKey: 'test-key'
       });
     });
     
-    expect(result.current.notes[0].title).toBe('Updated Title');
+    expect(result.current.servers).toHaveLength(1);
+    expect(result.current.servers[0].name).toBe('Test Server');
+  });
+  
+  it('validates server configuration', async () => {
+    const { result } = renderHook(() => useMCPServers());
+    
+    await act(async () => {
+      await result.current.validateServer({
+        url: 'invalid-url',
+        apiKey: 'test-key'
+      });
+    });
+    
+    expect(result.current.error).toBeDefined();
+    expect(result.current.isValid).toBe(false);
+  });
+  
+  it('handles server selection', async () => {
+    const { result } = renderHook(() => useMCPServers());
+    
+    await act(async () => {
+      await result.current.selectServer('1');
+    });
+    
+    expect(result.current.selectedServer).toBe('1');
+    expect(result.current.isActive).toBe(true);
   });
 });
 ```
 
 ## Service Testing
 
-### Service Test Example
+### LM Studio Service Test Example
 ```typescript
-describe('cacheService', () => {
+describe('lmStudioService', () => {
   beforeEach(() => {
-    localStorage.clear();
+    jest.clearAllMocks();
   });
   
-  it('stores and retrieves data', async () => {
-    const data = { key: 'value' };
-    await cacheService.set('test-key', data);
+  it('sends chat completion request', async () => {
+    const response = await lmStudioService.chatCompletion({
+      messages: [{ role: 'user', content: 'test' }],
+      model: 'test-model'
+    });
     
-    const retrieved = await cacheService.get('test-key');
-    expect(retrieved).toEqual(data);
+    expect(mockLMStudio.chatCompletion).toHaveBeenCalledWith({
+      messages: [{ role: 'user', content: 'test' }],
+      model: 'test-model'
+    });
+    expect(response).toBeDefined();
   });
   
-  it('handles cache expiration', async () => {
-    const data = { key: 'value' };
-    await cacheService.set('test-key', data, 100); // 100ms TTL
+  it('handles streaming responses', async () => {
+    const stream = await lmStudioService.streamChatCompletion({
+      messages: [{ role: 'user', content: 'test' }],
+      model: 'test-model'
+    });
     
-    await new Promise(resolve => setTimeout(resolve, 150));
+    expect(stream).toBeDefined();
+    expect(stream.on).toBeDefined();
+  });
+  
+  it('validates configuration', async () => {
+    const isValid = await lmStudioService.validateConfig({
+      baseUrl: 'http://localhost:1234',
+      primaryModelName: 'test-model'
+    });
     
-    const retrieved = await cacheService.get('test-key');
-    expect(retrieved).toBeNull();
+    expect(mockLMStudio.validateConfig).toHaveBeenCalled();
+    expect(isValid).toBe(true);
+  });
+});
+```
+
+### MCP Service Test Example
+```typescript
+describe('mcpService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
+  it('sends request to server', async () => {
+    const response = await mcpService.sendRequest({
+      serverId: '1',
+      endpoint: '/test',
+      method: 'GET'
+    });
+    
+    expect(mockMCP.sendRequest).toHaveBeenCalledWith({
+      serverId: '1',
+      endpoint: '/test',
+      method: 'GET'
+    });
+    expect(response).toBeDefined();
+  });
+  
+  it('validates server configuration', async () => {
+    const isValid = await mcpService.validateServer({
+      url: 'http://test.com',
+      apiKey: 'test-key'
+    });
+    
+    expect(mockMCP.validateServer).toHaveBeenCalled();
+    expect(isValid).toBe(true);
+  });
+  
+  it('handles server errors', async () => {
+    mockMCP.sendRequest.mockRejectedValue(new Error('Server error'));
+    
+    await expect(mcpService.sendRequest({
+      serverId: '1',
+      endpoint: '/test',
+      method: 'GET'
+    })).rejects.toThrow('Server error');
   });
 });
 ```
 
 ## Integration Testing
 
-### Integration Test Example
+### Chat Flow Integration Test
 ```typescript
-describe('Note Creation Flow', () => {
-  it('creates note and generates embedding', async () => {
-    const { result: notesHook } = renderHook(() => useNotes());
-    const { result: embeddingHook } = renderHook(() => useEmbeddings());
+describe('Chat Flow Integration', () => {
+  it('completes chat flow with LM Studio', async () => {
+    const { result: chatHook } = renderHook(() => useChatHistory());
+    const { result: lmStudioHook } = renderHook(() => useLMStudio());
     
-    // Create note
-    const note = await notesHook.current.createNote({
-      title: 'Test Note',
-      content: 'Test Content',
+    // Initialize LM Studio
+    await act(async () => {
+      await lmStudioHook.current.loadConfig();
     });
     
-    // Wait for embedding generation
-    await waitFor(() => {
-      expect(embeddingHook.current.embeddings[note.id]).toBeDefined();
+    // Send message
+    await act(async () => {
+      await chatHook.current.sendMessage('test message');
     });
     
-    // Verify embedding was stored
-    const embedding = await databaseService.getEmbedding(note.id);
-    expect(embedding).toBeDefined();
-    expect(embedding.vector).toHaveLength(EMBEDDING_DIMENSION);
+    // Verify response
+    expect(chatHook.current.messages).toHaveLength(2);
+    expect(chatHook.current.messages[1].content).toBeDefined();
+  });
+  
+  it('handles model switching', async () => {
+    const { result: lmStudioHook } = renderHook(() => useLMStudio());
+    const { result: chatHook } = renderHook(() => useChatHistory());
+    
+    // Switch model
+    await act(async () => {
+      await lmStudioHook.current.selectModel('new-model');
+    });
+    
+    // Send message with new model
+    await act(async () => {
+      await chatHook.current.sendMessage('test message');
+    });
+    
+    expect(chatHook.current.messages[1].metadata.model).toBe('new-model');
+  });
+});
+```
+
+### Server Configuration Integration Test
+```typescript
+describe('Server Configuration Integration', () => {
+  it('manages MCP server configuration', async () => {
+    const { result: mcpHook } = renderHook(() => useMCPServers());
+    const { result: lmStudioHook } = renderHook(() => useLMStudio());
+    
+    // Add server
+    await act(async () => {
+      await mcpHook.current.addServer({
+        name: 'Test Server',
+        url: 'http://test.com',
+        apiKey: 'test-key'
+      });
+    });
+    
+    // Select server
+    await act(async () => {
+      await mcpHook.current.selectServer('1');
+    });
+    
+    // Verify LM Studio config
+    expect(lmStudioHook.current.config.baseUrl).toBe('http://test.com');
+  });
+  
+  it('handles server validation', async () => {
+    const { result: mcpHook } = renderHook(() => useMCPServers());
+    
+    // Test invalid server
+    await act(async () => {
+      await mcpHook.current.validateServer({
+        url: 'invalid-url',
+        apiKey: 'test-key'
+      });
+    });
+    
+    expect(mcpHook.current.error).toBeDefined();
+    expect(mcpHook.current.isValid).toBe(false);
   });
 });
 ```
@@ -408,4 +655,5 @@ graph TD
    - Document test requirements
    - Explain complex test scenarios
    - Keep test descriptions clear
+   - Update documentation with changes 
    - Update documentation with changes 
